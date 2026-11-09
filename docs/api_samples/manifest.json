@@ -1,0 +1,109 @@
+{
+  "captured_at_utc": "2026-11-09T02:58:13.684473+00:00",
+  "school": "NORTHEAST_ELEMENTARY",
+  "school_id": "3b1df853-0744-4fae-9de7-02ecd78c6e4a",
+  "grade": "01",
+  "meal_type": "Lunch",
+  "serving_line": "A Line",
+  "samples": [
+    {
+      "file": "weekly-2026-11-02.json",
+      "endpoint": "Weekly",
+      "serving_date": "11/2/2026",
+      "url": "https://webapis.schoolcafe.com/api/CalendarView/GetWeeklyMenuitemsByGrade?SchoolId=3b1df853-0744-4fae-9de7-02ecd78c6e4a&ServingDate=11%2F2%2F2026&ServingLine=A+Line&MealType=Lunch&Grade=01&PersonId=null&enabledWeekendMenus=false",
+      "sha256": "14353a5858add8b4b6ea42a1587d00fc58b6c636e5e494e2abeeb00763fe6475",
+      "top_level_keys": [
+        "11/2/2026",
+        "11/3/2026",
+        "11/4/2026",
+        "11/5/2026",
+        "11/6/2026"
+      ]
+    },
+    {
+      "file": "weekly-2026-11-04.json",
+      "endpoint": "Weekly",
+      "serving_date": "11/4/2026",
+      "url": "https://webapis.schoolcafe.com/api/CalendarView/GetWeeklyMenuitemsByGrade?SchoolId=3b1df853-0744-4fae-9de7-02ecd78c6e4a&ServingDate=11%2F4%2F2026&ServingLine=A+Line&MealType=Lunch&Grade=01&PersonId=null&enabledWeekendMenus=false",
+      "sha256": "a4499dee6cdd66072405a7e1be42c752186f3333a74e138c996d5e2f4bc8d234",
+      "top_level_keys": [
+        "11/4/2026",
+        "11/5/2026",
+        "11/6/2026",
+        "11/7/2026",
+        "11/8/2026"
+      ]
+    },
+    {
+      "file": "weekly-2026-11-08.json",
+      "endpoint": "Weekly",
+      "serving_date": "11/8/2026",
+      "url": "https://webapis.schoolcafe.com/api/CalendarView/GetWeeklyMenuitemsByGrade?SchoolId=3b1df853-0744-4fae-9de7-02ecd78c6e4a&ServingDate=11%2F8%2F2026&ServingLine=A+Line&MealType=Lunch&Grade=01&PersonId=null&enabledWeekendMenus=false",
+      "sha256": "ebd555d84136be978c9ef80c9b431f6dcbcb2d6cdb6159b71d60e0a53253bab7",
+      "top_level_keys": [
+        "11/8/2026",
+        "11/9/2026",
+        "11/10/2026",
+        "11/11/2026",
+        "11/12/2026"
+      ]
+    },
+    {
+      "file": "weekly-2026-11-09.json",
+      "endpoint": "Weekly",
+      "serving_date": "11/9/2026",
+      "url": "https://webapis.schoolcafe.com/api/CalendarView/GetWeeklyMenuitemsByGrade?SchoolId=3b1df853-0744-4fae-9de7-02ecd78c6e4a&ServingDate=11%2F9%2F2026&ServingLine=A+Line&MealType=Lunch&Grade=01&PersonId=null&enabledWeekendMenus=false",
+      "sha256": "bdddb8d6e4da0253a1a7748817a270a57e4bb9f399bbcf0fba2a7aecc15e7c23",
+      "top_level_keys": [
+        "11/9/2026",
+        "11/10/2026",
+        "11/11/2026",
+        "11/12/2026",
+        "11/13/2026"
+      ]
+    },
+    {
+      "file": "weekly-2026-11-11.json",
+      "endpoint": "Weekly",
+      "serving_date": "11/11/2026",
+      "url": "https://webapis.schoolcafe.com/api/CalendarView/GetWeeklyMenuitemsByGrade?SchoolId=3b1df853-0744-4fae-9de7-02ecd78c6e4a&ServingDate=11%2F11%2F2026&ServingLine=A+Line&MealType=Lunch&Grade=01&PersonId=null&enabledWeekendMenus=false",
+      "sha256": "96bb4a520b1d92d6bedd69e57072467afaa6b5de9274de7b57048959f3e9d7c6",
+      "top_level_keys": [
+        "11/11/2026",
+        "11/12/2026",
+        "11/13/2026",
+        "11/14/2026",
+        "11/15/2026"
+      ]
+    },
+    {
+      "file": "daily-2026-11-09.json",
+      "endpoint": "Daily",
+      "serving_date": "11/9/2026",
+      "url": "https://webapis.schoolcafe.com/api/CalendarView/GetDailyMenuitemsByGrade?SchoolId=3b1df853-0744-4fae-9de7-02ecd78c6e4a&ServingDate=11%2F9%2F2026&ServingLine=A+Line&MealType=Lunch&Grade=01&PersonId=null",
+      "sha256": "714a9c538ad37e39743e9ea8c9a9930c7450aa3659d9de1ccd54e271fe2723be",
+      "top_level_keys": [
+        "ENTREES",
+        "VEGETABLE SERVED",
+        "VEGETABLES CHOICE BAR",
+        "FRUITS",
+        "MILK",
+        "CONDIMENTS"
+      ]
+    },
+    {
+      "file": "weekly-2026-12-28.json",
+      "endpoint": "Weekly",
+      "serving_date": "12/28/2026",
+      "url": "https://webapis.schoolcafe.com/api/CalendarView/GetWeeklyMenuitemsByGrade?SchoolId=3b1df853-0744-4fae-9de7-02ecd78c6e4a&ServingDate=12%2F28%2F2026&ServingLine=A+Line&MealType=Lunch&Grade=01&PersonId=null&enabledWeekendMenus=false",
+      "sha256": "f9928e0ec7adbda0e3e3372fd8675a883f20dd9ab22755369086549a419aa99d",
+      "top_level_keys": [
+        "12/28/2026",
+        "12/29/2026",
+        "12/30/2026",
+        "12/31/2026",
+        "1/1/2027"
+      ]
+    }
+  ]
+}

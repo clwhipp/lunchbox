@@ -1,0 +1,8 @@
+# Runtime dependencies; update together and rerun all release checks.
+asgiref==3.13.0
+Django==5.2.19
+django-htmx==1.29.0
+gunicorn==23.0.0
+packaging==26.3
+sqlparse==0.6.1
+whitenoise==6.12.0

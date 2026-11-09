@@ -1,0 +1,7 @@
+{% load static %}
+<div class="detail-heading"><p class="eyebrow">A CLOSER LOOK</p><h2 id="detail-title">{{ item.name }}</h2><p>Serving size · {{ item.serving_size|default:'Not supplied' }}</p></div>
+<img class="detail-photo food-photo" src="{% if item.image %}{% url 'thumbnail' item.food_id %}{% else %}{% static 'menus/plate.svg' %}{% endif %}" data-fallback="{% static 'menus/plate.svg' %}" alt="{{ item.name }}" width="160" height="120">
+<section class="allergen-box"><h3>Allergens</h3><p>{{ item.allergens }}</p></section>
+<section class="nutrition"><h3>Nutrition per serving</h3><dl>{% for nutrient in item.nutrition %}<div><dt>{{ nutrient.label }}</dt><dd>{% if nutrient.value is None %}Not supplied{% else %}{{ nutrient.value|floatformat:'-2' }} <span>{{ nutrient.unit }}</span>{% endif %}</dd></div>{% endfor %}</dl></section>
+<section class="ingredients"><h3>Ingredients</h3><p>{{ ingredients }}</p></section>
+<p class="detail-source">As supplied by SchoolCafe for the selected grade and serving date.</p>

@@ -1,0 +1,3 @@
+{% extends 'menus/base.html' %}
+{% block title %}{{ item.name }} · Lunchbox{% endblock %}
+{% block content %}<a href="{{ selection.url }}" class="back-link">← Back to the week's menu</a><article class="standalone-detail">{% include 'menus/detail_content.html' %}</article>{% endblock %}

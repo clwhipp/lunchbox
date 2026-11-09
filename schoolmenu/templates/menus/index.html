@@ -1,0 +1,11 @@
+{% extends 'menus/base.html' %}
+{% block content %}
+<section class="page-intro"><div><p class="eyebrow">THE WEEKLY LUNCH PLAN</p><h1>Good food. Happier school days.</h1><p>Explore the menu, save their favorites, and see when to pack a lunch.</p></div>
+  <form class="school-settings" method="get"><input type="hidden" name="week" value="{{ selection.start|date:'Y-m-d' }}"><label>School<select name="school">{% for value,label in schools %}<option value="{{ value }}" {% if value == selection.school.name %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label><label>Grade<select name="grade">{% for grade in grades %}<option value="{{ grade }}" {% if grade == selection.grade %}selected{% endif %}>{{ grade }}</option>{% endfor %}</select></label><button type="submit" class="button secondary">Apply</button></form>
+</section>
+<nav class="week-nav" aria-label="Week navigation">
+  <div class="week-arrows"><a href="{{ previous_url }}" class="arrow-button" aria-label="Previous week">←</a><div><p class="eyebrow">MONDAY — FRIDAY</p><h2>{{ selection.start|date:'M j' }} – {{ end|date:'M j, Y' }}</h2></div><a href="{{ next_url }}" class="arrow-button" aria-label="Next week">→</a></div>
+  <div class="week-tools"><a href="{{ current_url }}" class="button secondary">{{ current_label }}</a><form method="get" class="date-picker"><input type="hidden" name="school" value="{{ selection.school.name }}"><input type="hidden" name="grade" value="{{ selection.grade }}"><label class="sr-only" for="week-date">Choose any date in a week</label><input id="week-date" type="date" name="date" value="{{ selection.start|date:'Y-m-d' }}" min="2000-01-10" max="2099-12-25" required><button type="submit" class="button">Go</button></form></div>
+</nav>
+{% include 'menus/week.html' %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% load static %}
+<article class="food-card {{ item.preference }}" data-food-id="{{ item.food_id }}" data-preference="{{ item.preference }}">
+  <a class="food-open" href="{% url 'detail' item.food_id %}?{{ query }}&amp;serving_date={{ day.date|date:'Y-m-d' }}" hx-get="{% url 'detail' item.food_id %}?{{ query }}&amp;serving_date={{ day.date|date:'Y-m-d' }}" hx-target="#dialog-content" hx-swap="innerHTML" data-food-detail>
+    <img class="food-photo" src="{% if item.image %}{% url 'thumbnail' item.food_id %}{% else %}{% static 'menus/plate.svg' %}{% endif %}" data-fallback="{% static 'menus/plate.svg' %}" alt="" loading="lazy" width="64" height="64"><span><strong>{{ item.name }}</strong><small>{{ item.serving_size|default:'Serving size not supplied' }}</small></span>
+  </a>
+  <form method="post" action="{% url 'preference' item.food_id %}" hx-post="{% url 'preference' item.food_id %}" hx-target="#week-panel" hx-swap="outerHTML" class="preference-form" data-saved-state="{{ item.preference }}">
+    {% csrf_token %}<input type="hidden" name="week" value="{{ selection.start|date:'Y-m-d' }}"><input type="hidden" name="school" value="{{ selection.school.name }}"><input type="hidden" name="grade" value="{{ selection.grade }}"><input type="hidden" name="state" value="{{ item.preference }}">
+    <div class="preference-controls js-only">
+      <label><input type="checkbox" value="liked" id="like-{{ day.date|date:'Ymd' }}-{{ group.label|slugify }}-{{ item.food_id }}" aria-label="Likes {{ item.name }} on {{ day.date|date:'l' }}" {% if item.preference == 'liked' %}checked{% endif %}> Likes</label>
+      <label><input type="checkbox" value="disliked" id="dislike-{{ day.date|date:'Ymd' }}-{{ group.label|slugify }}-{{ item.food_id }}" aria-label="Dislikes {{ item.name }} on {{ day.date|date:'l' }}" {% if item.preference == 'disliked' %}checked{% endif %}> Dislikes</label>
+    </div>
+    <div class="no-js-only"><p>Saved: {{ item.preference }}</p><button name="state" value="liked">Like</button><button name="state" value="disliked">Dislike</button><button name="state" value="neutral">Clear</button></div>
+  </form>
+</article>

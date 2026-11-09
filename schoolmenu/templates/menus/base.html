@@ -1,0 +1,20 @@
+{% load static django_htmx %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#244d3c">
+  <title>{% block title %}Lunchbox · School lunch planner{% endblock %}</title>
+  <link rel="icon" href="{% static 'menus/plate.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'menus/style.css' %}">
+  {% htmx_script %}
+  <script type="module" src="{% static 'menus/bootstrap.js' %}"></script>
+</head>
+<body>
+  <header class="site-header"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">🍱</span><span>Lunchbox<small>School lunch, thoughtfully planned.</small></span></a><span class="header-note">A little less morning guesswork.</span></header>
+  <main>{% block content %}{% endblock %}</main>
+  <div id="save-status" class="save-status" role="status" aria-live="polite"></div>
+  <dialog id="food-dialog" aria-labelledby="detail-title"><button type="button" class="dialog-close" data-close-dialog aria-label="Close food details">×</button><div id="dialog-content"></div></dialog>
+  <footer class="site-footer">Menu information from SchoolCafe <span>Preferences saved privately on your server.</span></footer>
+</body>
+</html>

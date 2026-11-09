@@ -1,0 +1,5 @@
+{
+  "url": "https://onlineservice.primeroedge.com/SchoolCafeAPIs/api/GetThumbnailImage?menuItemId=32008",
+  "format": "JSON string containing base64 JPEG",
+  "sha256": "a0656be4f85295b430d9fd35ad06165a50d9c0cf50d5dcd35ab6a2c2b98776d0"
+}

@@ -1,0 +1,64 @@
+name: Application checks
+on: [push, pull_request]
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '${{ matrix.python-version }}'
+          cache: pip
+          cache-dependency-path: 'requirements*.lock'
+      - run: pip install -r requirements-dev.lock
+      - run: ruff check schoolmenu tests scripts manage.py schoolcafe_client.py
+      - run: ruff format --check schoolmenu tests scripts manage.py schoolcafe_client.py
+      - run: mypy schoolmenu
+      - run: python manage.py makemigrations --check --dry-run
+        env:
+          DJANGO_SETTINGS_MODULE: tests.settings
+      - run: pytest tests/unit tests/integration --cov=schoolmenu --cov-branch --cov-report=xml --cov-report=json
+      - run: python scripts/check_coverage.py coverage.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage-${{ matrix.python-version }}
+          path: |
+            coverage.json
+            coverage.xml
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: pip install -r requirements-dev.lock
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run test:coverage
+      - run: playwright install --with-deps chromium
+      - run: pytest tests/e2e --tracing=retain-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-results
+          path: |
+            artifacts/
+            test-results/
+            coverage/
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: docker compose build
+      - run: python3 scripts/docker_smoke.py
+      - run: docker build --target test -t schoolcafe-family:test .
+      - run: docker run --rm schoolcafe-family:test sh -c 'pytest tests/unit tests/integration --cov=schoolmenu --cov-branch --cov-report=json && python scripts/check_coverage.py coverage.json'
