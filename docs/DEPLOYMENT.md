@@ -15,6 +15,7 @@ Compose reads `.env`, which is excluded from source control and Docker's build c
 | `SUPPORTED_GRADES` | `01` | Verified grade codes offered in the selector |
 | `BIND_ADDRESS` | `127.0.0.1` | Host network interface |
 | `APP_PORT` | `8000` | Published host port |
+| `LUNCHBOX_IMAGE` | `lunchbox:local` | Local image or published `username/lunchbox:version` to run |
 | `DATABASE_PATH` | `/data/schoolcafe.sqlite3` | Set inside Compose's persistent data directory |
 | `CSRF_TRUSTED_ORIGINS` | Empty | Optional trusted full origins for a proxy configuration |
 
@@ -36,6 +37,47 @@ docker compose logs --tail=50 web
 Readiness checks SQLite access and migrations without contacting SchoolCafe. A live menu requires SchoolCafe when no fresh/saved response exists.
 
 For another household device, set `BIND_ADDRESS=0.0.0.0`, add the computer's LAN IP/hostname to `DJANGO_ALLOWED_HOSTS`, and run `docker compose up -d --force-recreate --wait`. Visit `http://<computer-lan-ip>:8000` on that network; configure the host firewall as needed. For an HTTPS proxy, configure the trusted hostname/origin and terminate TLS/access control at the proxy. The initial deployment is local.
+
+## Docker Hub releases
+
+The release workflow uses the same secret names and version-tag trigger as `poke-games`, publishing a single Linux/amd64 runtime image named **lunchbox**. All application, coverage, browser, Docker persistence, and workflow checks run through the reusable `ci.yml` workflow before the publishing job can log in and push. Branch pushes and pull requests run validation without publishing images.
+
+Configure these secrets in the `clwhipp/lunchbox` GitHub repository under **Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+| --- | --- |
+| `DOCKER_USERNAME` | The Docker Hub account that owns the `lunchbox` repository |
+| `DOCKER_PASSWORD` | A Docker Hub access token with permission to push to that repository |
+
+Repository secrets from `poke-games` are not copied by the workflow. Configure them in `lunchbox`, or grant this repository access to the existing organization secrets. Create the `lunchbox` repository in Docker Hub with the desired visibility. Credentials belong in GitHub secrets, not `.env`, Docker build arguments, or source files.
+
+After the workflow changes have been committed and pushed, publish a release by pushing its tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+For a stable release, Docker's [metadata action](https://github.com/docker/metadata-action#semver) generates `username/lunchbox:1.0.0` and `username/lunchbox:latest`. A prerelease such as `v1.1.0-rc.1` generates the prerelease tag without changing `latest`. The Dockerfile's `runtime` target is published; test dependencies and the household database are excluded. A failed validation job prevents publication. Each release tag must reference the commit containing the intended source and workflow files.
+
+To deploy the image, set `LUNCHBOX_IMAGE=your-dockerhub-username/lunchbox:1.0.0` in `.env`. For a private repository, log in to Docker Hub on the deployment host before pulling. A fresh installation uses:
+
+```bash
+docker compose pull web
+docker compose run --rm --no-build web python manage.py migrate --noinput
+docker compose up -d --no-build --wait
+```
+
+The `--no-build` flags run the pulled image. The same `schoolcafe_data` volume persists preferences. To update an existing installation, make a backup first, select the new version in `.env`, then:
+
+```bash
+docker compose pull web
+docker compose stop web
+docker compose run --rm --no-build web python manage.py migrate --noinput
+docker compose up -d --no-build --wait
+```
+
+Use an explicit version when reproducible deployment matters. To build from source locally, select `LUNCHBOX_IMAGE=lunchbox:local` and use the build procedure below. The image naming change does not rename the existing SQLite volume.
 
 ## Backups and restore
 

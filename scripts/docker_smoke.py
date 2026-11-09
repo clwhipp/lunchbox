@@ -46,7 +46,11 @@ def main():
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    env = os.environ | {"APP_PORT": str(port), "BIND_ADDRESS": "127.0.0.1"}
+    env = os.environ | {
+        "APP_PORT": str(port),
+        "BIND_ADDRESS": "127.0.0.1",
+        "LUNCHBOX_IMAGE": "lunchbox:local",
+    }
 
     def compose(*args, input=None, check=True):
         result = subprocess.run(

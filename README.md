@@ -29,6 +29,22 @@ Menu data is cached. A source outage can use a clearly labeled saved menu for up
 
 The `schoolcafe_data` Docker volume stores `/data/schoolcafe.sqlite3` and its WAL files. The non-root runtime uses Gunicorn and locally served static assets. Readiness is available at `/health/ready`. See [deployment, backups, updates, and household access](docs/DEPLOYMENT.md).
 
+## Publish to Docker Hub
+
+The [publishing workflow](.github/workflows/publish.yml) follows `poke-games`: configure the GitHub repository secrets `DOCKER_USERNAME` and `DOCKER_PASSWORD` (a Docker Hub access token with write permission), then push a version tag such as `v1.0.0`. The complete validation workflow must pass before publication.
+
+A stable `v1.0.0` release publishes `<DOCKER_USERNAME>/lunchbox:1.0.0` and `<DOCKER_USERNAME>/lunchbox:latest`. Prerelease tags publish their version without advancing `latest`. Local builds use `lunchbox:local`; the CI test image is `lunchbox:test`.
+
+To run a published release, set `LUNCHBOX_IMAGE=your-dockerhub-username/lunchbox:1.0.0` in `.env`, then:
+
+```bash
+docker compose pull web
+docker compose run --rm --no-build web python manage.py migrate --noinput
+docker compose up -d --no-build --wait
+```
+
+See [release setup and updates](docs/DEPLOYMENT.md#docker-hub-releases) for the repository settings, tag commands, and update procedure.
+
 ## Development and checks
 
 Use Python 3.13 or 3.14 and a Node version compatible with the locked test tooling (tested locally on 22.22.1):
@@ -49,7 +65,7 @@ npm run test:coverage
 python3 scripts/docker_smoke.py
 ```
 
-The smoke script requires Docker, `.env`, and a built production image. It creates a uniquely named isolated project and volume, verifies the production image, and removes only its own test resources. To use installed Chrome in browser tests, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its executable path.
+The smoke script requires Docker, `.env`, and the built `lunchbox:local` production image. It creates a uniquely named isolated project and volume, verifies that local image even when `.env` selects a published release, and removes only its own test resources. To use installed Chrome in browser tests, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its executable path.
 
 For local development, set `DJANGO_SECRET_KEY` in the environment, then run `manage.py migrate`, `manage.py collectstatic --noinput`, and `manage.py runserver` using the virtual environment. Local development does not automatically load `.env`; Compose does. Test settings use an isolated key/database and fixture-backed transport. Production contains no fixture switch or test-data endpoint.
 

@@ -3,7 +3,7 @@ services:
     build:
       context: .
       target: runtime
-    image: schoolcafe-family:local
+    image: "${LUNCHBOX_IMAGE:-lunchbox:local}"
     env_file: .env
     environment:
       DATABASE_PATH: /data/schoolcafe.sqlite3

@@ -1,7 +1,29 @@
 name: Application checks
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
 jobs:
+  workflows:
+    name: Validate GitHub Actions workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check workflow syntax and expressions
+        run: >-
+          docker run --rm
+          --volume "${GITHUB_WORKSPACE}/.github:/work/.github:ro"
+          --workdir /work
+          rhysd/actionlint:1.7.12 -color
+          .github/workflows/ci.yml .github/workflows/publish.yml
   python:
+    needs: workflows
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -29,6 +51,7 @@ jobs:
             coverage.json
             coverage.xml
   browser:
+    needs: workflows
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,11 +77,12 @@ jobs:
             test-results/
             coverage/
   docker:
+    needs: workflows
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: cp .env.example .env
       - run: docker compose build
       - run: python3 scripts/docker_smoke.py
-      - run: docker build --target test -t schoolcafe-family:test .
-      - run: docker run --rm schoolcafe-family:test sh -c 'pytest tests/unit tests/integration --cov=schoolmenu --cov-branch --cov-report=json && python scripts/check_coverage.py coverage.json'
+      - run: docker build --target test -t lunchbox:test .
+      - run: docker run --rm lunchbox:test sh -c 'pytest tests/unit tests/integration --cov=schoolmenu --cov-branch --cov-report=json && python scripts/check_coverage.py coverage.json'
