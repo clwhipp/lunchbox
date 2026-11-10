@@ -375,6 +375,49 @@ input[type="date"] {
   border-top: 2px solid #adb99f;
   padding: 14px 0 16px;
   margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sack-lunch-form {
+  margin: 0;
+  min-width: 0;
+}
+.sack-lunch-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sack-lunch-toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--green);
+}
+.sack-lunch-save {
+  margin-top: 5px;
+}
+.sack-summary-grid {
+  grid-template-columns: minmax(220px, 0.55fr);
+}
+.sack-summary {
+  border-color: #d4dfd0;
+}
+.sack-summary .summary-icon {
+  background: #e8eddf;
+  color: var(--green);
 }
 .day-header > div {
   display: flex;
@@ -389,18 +432,6 @@ input[type="date"] {
 .day-header > div > span {
   font-size: 11px;
   color: var(--muted);
-}
-.day-status {
-  font-size: 10px;
-  margin-top: 8px;
-  color: var(--muted);
-  line-height: 1.5;
-}
-.day-status.school {
-  color: #2a7042;
-}
-.day-status.pack {
-  color: #9d433c;
 }
 .food-group {
   margin-bottom: 21px;
@@ -420,6 +451,31 @@ input[type="date"] {
   margin-bottom: 9px;
   overflow: hidden;
   transition: border-color 0.15s;
+}
+.menu-item-entry {
+  margin-bottom: 9px;
+}
+.menu-item-entry > .food-card {
+  margin-bottom: 0;
+}
+.related-items {
+  margin: 0 11px 2px 22px;
+  padding: 8px 9px 1px;
+  border: 1px solid #d6ddcf;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: #f0f3eb;
+}
+.related-items-label {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+.related-choice .food-card {
+  margin-bottom: 7px;
 }
 .food-card.liked {
   border-color: var(--liked);
@@ -899,9 +955,6 @@ noscript button {
   }
   .day-header h3 {
     font-size: 18px;
-  }
-  .day-status {
-    font-size: 12px;
   }
   .food-group h4 {
     font-size: 11px;

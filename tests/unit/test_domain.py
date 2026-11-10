@@ -9,12 +9,13 @@ from schoolmenu.domain import (
     Group,
     Item,
     default_monday,
+    link_served_together,
     monday,
     normalize_item,
     normalize_week,
     nutrients,
     provider_date,
-    summarize,
+    sack_lunch_days,
     thumbnail,
 )
 from schoolmenu.provider import ProviderError
@@ -107,8 +108,7 @@ def test_unknown_malformed_and_missing(weekly):
     assert days[0].extra_groups[-1].label == "Other · NEW CATEGORY"
     assert days[1].incomplete and days[3].incomplete
     assert not days[4].items
-    assert len(summarize(days)["review"]) == 3
-    assert days[1].status_label == "Needs review"
+    assert all(not day.sack_lunch for day in days)
 
 
 @pytest.mark.parametrize("payload", [[], None, {"11/9/2026": []}])
@@ -178,29 +178,67 @@ def item(state, category="ENTREES"):
     return Item(1, 2, "Food", category, "", "", "", [], preference=state)
 
 
-@pytest.mark.parametrize(
-    "states,expected",
-    [
-        ([], "unavailable"),
-        (["neutral"], "review"),
-        (["disliked", "neutral"], "review"),
-        (["disliked", "disliked"], "pack"),
-        (["liked", "disliked"], "school"),
-        (["neutral", "liked"], "school"),
-    ],
-)
-def test_lunch_decision_table(states, expected):
-    day = Day(date(2026, 11, 9), [Group("Entrées", "main", [item(s) for s in states])])
-    summary = summarize([day])
-    assert summary[expected] == [day]
-    assert sum(map(len, summary.values())) == 1
-    if expected == "school":
-        assert day.status_label == "School lunch potentially"
+def test_week_relationship_metadata_is_validated_and_linked(weekly):
+    monday = weekly["11/9/2026"]
+    entree_id = monday["ENTREES"][0]["PEMenuItemId"]
+    choice_id = monday["VEGETABLES CHOICE BAR"][0]["PEMenuItemId"]
+    weekly["_served_together"] = {
+        "2026-11-09": [[entree_id, choice_id]],
+        "bad date": [[entree_id, choice_id]],
+        "11/10/2026": "not a list",
+        "11/11/2026": [[True, choice_id], [entree_id, 0], [entree_id]],
+        None: [[entree_id, choice_id]],
+    }
+
+    days = normalize_week(weekly, date(2026, 11, 9))
+
+    assert days[0].entrees[0].related_items[0].pe_id == choice_id
+    assert days[0].entrees[0].related_items[0].is_related_item
+    assert not any(item.is_related_item for item in days[1].items)
+    assert normalize_week({"_served_together": []}, date(2026, 11, 9))
 
 
-def test_side_preferences_and_incomplete_entrees():
-    day = Day(date(2026, 11, 9), [Group("Vegetables", "main", [item("liked", "VEGETABLE SERVED")])])
-    assert summarize([day])["unavailable"] == [day]
-    day.groups.append(Group("Entrées", "main", [item("disliked")]))
-    day.incomplete = True
-    assert summarize([day])["review"] == [day]
+def test_linked_choice_items_are_nested_under_the_parent_entree():
+    parent = item("neutral")
+    choice = Item(2, 3, "Nacho Cheese Doritos", "GRAINS", "1 pkg.", "", "", [])
+    day = Day(
+        date(2026, 11, 10), [Group("Entrées", "main", [parent]), Group("Grains", "extra", [choice])]
+    )
+
+    link_served_together([day], {day.date: [(parent.pe_id, choice.pe_id)]})
+
+    assert parent.related_items == [choice]
+    assert choice.is_related_item
+
+
+def test_non_entree_or_missing_items_are_not_nested():
+    entree = Item(1, 2, "Beef Taco Meat", "ENTREES", "", "", "", [])
+    guacamole = Item(2, 3, "Guacamole", "VEGETABLES CHOICE BAR", "", "", "", [])
+    salsa = Item(3, 4, "Salsa Cup", "VEGETABLES CHOICE BAR", "", "", "", [])
+    day = Day(date(2026, 11, 10), [Group("Menu", "main", [entree, guacamole, salsa])])
+    link_served_together(
+        [day],
+        {
+            day.date: [
+                (99, salsa.pe_id),
+                (guacamole.pe_id, salsa.pe_id),
+                (entree.pe_id, 99),
+                (entree.pe_id, entree.pe_id),
+            ]
+        },
+    )
+
+    assert not entree.related_items
+    assert not guacamole.related_items
+    assert not salsa.is_related_item
+
+
+def test_sack_lunch_confirmation_is_explicit_and_keeps_day_order():
+    days = [Day(date(2026, 11, 9) + timedelta(days=offset)) for offset in range(5)]
+    days[1].groups.append(Group("Entrées", "main", [item("disliked")]))
+    days[2].incomplete = True
+
+    confirmed = sack_lunch_days(days, {date(2026, 11, 11), date(2026, 11, 13)})
+
+    assert confirmed == [days[2], days[4]]
+    assert [day.sack_lunch for day in days] == [False, False, True, False, True]

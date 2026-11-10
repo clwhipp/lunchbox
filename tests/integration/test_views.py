@@ -26,15 +26,11 @@ def test_full_page_and_redirects(client, source):
     assert b"Cheese Pizzable" in response.content and b"No menu published" in response.content
     assert b"Vegetables" in response.content and b"Drinks" in response.content
     assert b"Condiments" not in response.content
-    assert b"SCHOOL LUNCH POTENTIALLY" in response.content
-    assert b"SCHOOL LUNCH LIKELY" not in response.content
-    assert b"THE WEEKLY LUNCH PLAN" not in response.content
-    assert b"Good food. Happier school days." not in response.content
-    assert (
-        b"Explore the menu, save their favorites, and see when to pack a lunch."
-        not in response.content
-    )
-    assert response.context["summary"]["pack"] == []
+    assert b"SACK LUNCHES" in response.content
+    assert b"LUNCH FROM HOME" not in response.content
+    assert b"SCHOOL LUNCH POTENTIALLY" not in response.content
+    assert b"Needs a look" not in response.content
+    assert response.context["sack_lunch_days"] == []
     response = client.get("/", QUERY | {"week": "2026-11-11"})
     assert response.status_code == 302 and "week=2026-11-09" in response.url
     response = client.get("/", {"date": "2026-11-11"})

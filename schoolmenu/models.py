@@ -35,6 +35,22 @@ class FoodPreference(models.Model):
         ]
 
 
+class SackLunch(models.Model):
+    profile = models.ForeignKey(ChildProfile, on_delete=models.CASCADE)
+    school_id = models.UUIDField()
+    week_start = models.DateField()
+    serving_date = models.DateField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile", "school_id", "serving_date"],
+                name="unique_sack_lunch",
+            ),
+        ]
+
+
 class MenuCache(models.Model):
     key = models.CharField(max_length=300, unique=True)
     payload = models.JSONField()

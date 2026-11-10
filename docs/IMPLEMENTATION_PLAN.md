@@ -2,7 +2,7 @@
 
 ## Deliverable and decisions
 
-Build a Dockerized Python application for browsing Monday–Friday school lunches, recording one child's food preferences in SQLite, and identifying days likely to need lunch from home. This document is the build plan; the runtime application and deployment are future implementation work.
+This is the original build plan and records earlier requirements; it is not the current behavior specification. The application is implemented. In particular, the preference-inferred lunch classifications below were superseded by explicit per-day sack-lunch confirmation; see the current [README](../README.md) and [deployment guide](DEPLOYMENT.md).
 
 The plan is based on seven actual API responses described in [API findings](API_FINDINGS.md), rather than assumptions about the proof-of-concept client's return values.
 

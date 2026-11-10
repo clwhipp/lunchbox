@@ -56,12 +56,7 @@ def test_real_preferences_propagate_across_days_and_reloads(monkeypatch, weekly,
     fetch = Mock(return_value=weekly)
     monkeypatch.setattr(services, "fetch_provider", fetch)
     week = load_week(selection)
-    assert [len(week["summary"][s]) for s in ["pack", "school", "review", "unavailable"]] == [
-        0,
-        0,
-        4,
-        1,
-    ]
+    assert week["sack_lunch_days"] == []
     assert fetch.call_count == 1
     for item in week["days"][0].entrees:
         save_preference(Food.objects.get(pk=item.food_id), "disliked")
@@ -69,13 +64,8 @@ def test_real_preferences_propagate_across_days_and_reloads(monkeypatch, weekly,
     save_preference(chicken, "liked")
     save_preference(chicken, "liked")
     week = load_week(selection, fetch=False)
-    assert [len(week["summary"][s]) for s in ["pack", "school", "review", "unavailable"]] == [
-        1,
-        2,
-        1,
-        1,
-    ]
-    assert [d.date.weekday() for d in week["summary"]["school"]] == [1, 3]
+    assert week["sack_lunch_days"] == []
+    assert [item.preference for item in week["days"][0].entrees] == ["disliked"] * 3
     assert FoodPreference.objects.count() == 4
     save_preference(chicken, "disliked")
     assert (
@@ -201,6 +191,119 @@ def test_daily_enrichment_preserves_weekly_nutrition(monkeypatch, weekly, daily,
     entry.payload = {"ENTREES": [None, {"MenuItemId": 999}]}
     entry.save()
     assert "unavailable" in ingredients_for(selection, selection.start, item)
+
+
+def test_weekly_menu_resolves_served_together_relationships(monkeypatch, weekly, selection):
+    day_key = "11/9/2026"
+    raw_day = deepcopy(weekly[day_key])
+    entree = raw_day["ENTREES"][0]
+    choice_group, choice = next(
+        (category, row)
+        for category, rows in raw_day.items()
+        if category != "ENTREES"
+        for row in rows
+        if row.get("PEMenuItemId", 0) > 0
+    )
+    daily = deepcopy(raw_day)
+    next(item for item in daily[choice_group] if item["PEMenuItemId"] == choice["PEMenuItemId"])[
+        "HasServeWith"
+    ] = True
+    client = Mock()
+    client.get_weekly_menu.return_value = {day_key: raw_day}
+    client.get_daily_menu.return_value = daily
+    client.get_menu_items_served_together.return_value = [
+        {
+            "PrimaryPEMenuItemId": entree["PEMenuItemId"],
+            "SecondaryPEMenuItemId": choice["PEMenuItemId"],
+        }
+    ]
+    monkeypatch.setattr(services, "SchoolCafeClient", Mock(return_value=client))
+    monkeypatch.setattr(services, "_last_request", 0.0)
+    monkeypatch.setattr(services.time, "monotonic", lambda: 10)
+    monkeypatch.setattr(services.time, "sleep", Mock())
+
+    result = services.fetch_provider(selection, "weekly", selection.start)
+
+    client.get_daily_menu.assert_called_once_with(day_key)
+    client.get_menu_items_served_together.assert_called_once_with(
+        choice["PEMenuId"], choice["PEMenuItemId"], serving_size_by_grade=True
+    )
+    assert result["_served_together"][day_key] == [[entree["PEMenuItemId"], choice["PEMenuItemId"]]]
+
+
+def test_served_together_filters_and_deduplicates_pairs(monkeypatch):
+    choice = {"HasServeWith": True, "PEMenuId": 12, "PEMenuItemId": 34}
+    categories = {
+        "CONDIMENTS": [choice],
+        "GRAINS": [
+            None,
+            choice | {"PEMenuId": True},
+            choice | {"PEMenuItemId": 0},
+            choice,
+            choice.copy(),
+        ],
+    }
+    client = Mock()
+    client.get_menu_items_served_together.return_value = [
+        None,
+        {"PrimaryPEMenuItemId": 56, "SecondaryPEMenuItemId": 99},
+        {"PrimaryPEMenuItemId": 0, "SecondaryPEMenuItemId": 34},
+        {"PrimaryPEMenuItemId": 56, "SecondaryPEMenuItemId": 34},
+    ]
+    monkeypatch.setattr(services, "_last_request", 0.0)
+    monkeypatch.setattr(services.time, "monotonic", lambda: 10)
+    monkeypatch.setattr(services.time, "sleep", Mock())
+
+    pairs = services._resolve_served_together(client, categories)
+
+    assert pairs == [[56, 34]]
+    client.get_menu_items_served_together.assert_called_once_with(
+        12, 34, serving_size_by_grade=True
+    )
+
+
+def test_week_relationship_discovery_skips_empty_and_failed_days(monkeypatch, selection):
+    def menu_item(item_id):
+        return {"MenuItemId": item_id, "PEMenuItemId": item_id}
+
+    payload = {
+        "11/9/2026": {"ENTREES": [menu_item(0)]},
+        "11/10/2026": {"ENTREES": [menu_item(1)]},
+        "11/11/2026": {"ENTREES": [menu_item(2)]},
+        "11/12/2026": {"ENTREES": [menu_item(3)]},
+    }
+    client = Mock()
+    client.get_daily_menu.side_effect = [ProviderError("offline"), [], {"ENTREES": []}]
+    monkeypatch.setattr(services, "_last_request", 10.0)
+    monkeypatch.setattr(services.time, "monotonic", lambda: 10)
+    monkeypatch.setattr(services.time, "sleep", Mock())
+
+    assert services._resolve_week_relationships(client, payload, selection.start) == {}
+    assert client.get_daily_menu.call_count == 3
+
+
+def test_relationship_api_outage_leaves_menu_without_relationships(weekly):
+    categories = next(iter(weekly.values()))
+    item = next(
+        raw
+        for rows in categories.values()
+        for raw in rows
+        if isinstance(raw, dict) and raw.get("MenuItemId", 0) > 0 and raw.get("PEMenuItemId", 0) > 0
+    )
+    item["HasServeWith"] = True
+    client = Mock()
+    client.get_menu_items_served_together.side_effect = ProviderError("temporarily unavailable")
+
+    assert services._resolve_served_together(client, categories) == []
+
+
+def test_weekly_provider_rejects_non_object_response(monkeypatch, selection):
+    client = Mock()
+    client.get_weekly_menu.return_value = []
+    monkeypatch.setattr(services, "SchoolCafeClient", Mock(return_value=client))
+
+    with pytest.raises(ProviderError, match="Invalid weekly response"):
+        services.fetch_provider(selection, "weekly", selection.start)
 
 
 def test_gateway_retry_policy(monkeypatch, selection):

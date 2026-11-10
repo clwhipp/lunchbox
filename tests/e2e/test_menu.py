@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import date
 from pathlib import Path
@@ -6,6 +7,7 @@ import pytest
 from playwright.sync_api import expect
 
 from schoolmenu import services
+from tests.conftest import SAMPLES
 
 pytestmark = [pytest.mark.e2e, pytest.mark.django_db(transaction=True)]
 
@@ -46,30 +48,54 @@ def test_week_navigation_and_modal(page, menu_server):
     expect(opener).to_be_focused()
 
 
-def test_preferences_summary_and_new_browser_context(page, browser, menu_server):
+def test_served_together_choice_is_indented_under_parent_entree(page, menu_server, monkeypatch):
+    payload = json.loads((SAMPLES / "weekly-2026-11-09.json").read_text())
+    monday = payload["11/9/2026"]
+    entree = monday["ENTREES"][0]
+    choice = monday["VEGETABLES CHOICE BAR"][0]
+    payload["_served_together"] = {"11/9/2026": [[entree["PEMenuItemId"], choice["PEMenuItemId"]]]}
+    monkeypatch.setattr(services, "fetch_provider", lambda *args: payload)
+
     page.goto(menu_server)
-    chicken = page.get_by_role("checkbox", name="Likes Popcorn Chicken on Tuesday", exact=True)
-    chicken.check()
-    expect(chicken).to_be_checked()
-    expect(page.locator(".food-card.liked")).to_have_count(2)
-    expect(page.locator(".school-summary strong")).to_contain_text("2 days")
-    chicken.uncheck()
-    expect(page.locator(".food-card.liked")).to_have_count(0)
-    for name in ["Cheese Pizzable", "Cheeseburger", "Hamburger on a Bun"]:
-        box = page.get_by_role("checkbox", name=f"Dislikes {name} on Monday", exact=True)
-        box.check()
-        expect(box).to_be_checked()
-        expect(box).to_be_enabled()
-    expect(page.locator(".pack-summary strong")).to_contain_text("1 day")
-    expect(page.locator(".pack-summary")).to_contain_text("Mon, Nov 9")
+
+    parent = page.locator(".menu-item-entry").filter(has_text=entree["MenuItemDescription"])
+    expect(parent.locator(".related-items")).to_contain_text(choice["MenuItemDescription"])
+    expect(page.get_by_role("link", name=re.compile(choice["MenuItemDescription"]))).to_have_count(
+        1
+    )
+    page.set_viewport_size({"width": 320, "height": 1000})
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    expect(parent.locator(".related-items")).to_be_visible()
+
+
+def test_sack_lunch_summary_and_new_browser_context(page, browser, menu_server):
+    page.goto(menu_server)
+    tuesday = page.get_by_role("checkbox", name="Sack lunch for Tuesday, November 10", exact=True)
+    tuesday.check()
+    expect(tuesday).to_be_checked()
+    expect(page.locator(".sack-summary strong")).to_contain_text("1 day")
+    expect(page.locator(".sack-summary")).to_contain_text("Tue, Nov 10")
+    expect(page.locator(".sack-summary")).not_to_contain_text("Mon, Nov 9")
+    page.locator('select[name="grade"]').select_option("02")
+    page.get_by_role("button", name="Apply", exact=True).click()
+    tuesday = page.get_by_role("checkbox", name="Sack lunch for Tuesday, November 10", exact=True)
+    expect(tuesday).to_be_checked()
+    expect(page.locator(".sack-summary")).to_contain_text("Tue, Nov 10")
+    tuesday.uncheck()
+    expect(page.locator(".sack-summary")).to_contain_text("No sack lunches confirmed.")
+    page.get_by_role("checkbox", name="Sack lunch for Wednesday, November 11", exact=True).check()
     page.reload()
-    expect(page.locator(".food-card.disliked")).to_have_count(3)
+    expect(
+        page.get_by_role("checkbox", name="Sack lunch for Wednesday, November 11", exact=True)
+    ).to_be_checked()
     fresh = browser.new_context()
     try:
         other = fresh.new_page()
         other.goto(menu_server)
-        expect(other.locator(".food-card.disliked")).to_have_count(3)
-        expect(other.locator(".pack-summary strong")).to_contain_text("1 day")
+        expect(
+            other.get_by_role("checkbox", name="Sack lunch for Wednesday, November 11", exact=True)
+        ).to_be_checked()
+        expect(other.locator(".sack-summary")).to_contain_text("Wed, Nov 11")
     finally:
         fresh.close()
 
@@ -135,6 +161,17 @@ def test_responsive_menu_has_no_horizontal_overflow(page, menu_server, width):
     page.goto(menu_server)
     expect(page.locator(".day-column")).to_have_count(5)
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    if width == 320:
+        expect(page.locator(".summary-card")).to_have_count(1)
+        expect(
+            page.get_by_role("checkbox", name="Sack lunch for Monday, November 9", exact=True)
+        ).to_be_visible()
+        assert (
+            page.locator(".sack-lunch-toggle").first.evaluate(
+                "el => el.getBoundingClientRect().height"
+            )
+            >= 42
+        )
     if width == 1440:
         Path("artifacts").mkdir(exist_ok=True)
         page.screenshot(path="artifacts/weekly-desktop.png", full_page=True)
@@ -175,6 +212,11 @@ def test_broken_image_fallback(page, menu_server, before_init):
 @pytest.mark.browser_context_args(java_script_enabled=False)
 def test_plain_html_without_javascript(page, menu_server):
     page.goto(menu_server)
+    sack_box = page.get_by_role("checkbox", name="Sack lunch for Monday, November 9", exact=True)
+    sack_box.check()
+    page.get_by_role("button", name="Save sack lunch for Monday, November 9", exact=True).click()
+    expect(sack_box).to_be_checked()
+    expect(page.locator(".sack-summary")).to_contain_text("Mon, Nov 9")
     card = page.locator(".food-card").filter(
         has=page.get_by_role("link", name="Cheeseburger 1 ea.", exact=True)
     )

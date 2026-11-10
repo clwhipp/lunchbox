@@ -13,8 +13,15 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from .domain import default_monday, monday, normalize_week, provider_date, summarize
-from .models import ChildProfile, Food, FoodPreference, MenuCache
+from .domain import (
+    default_monday,
+    monday,
+    normalize_week,
+    positive_id,
+    provider_date,
+    sack_lunch_days,
+)
+from .models import ChildProfile, Food, FoodPreference, MenuCache, SackLunch
 from .provider import ProviderError, School, SchoolCafeClient
 
 logger = logging.getLogger(__name__)
@@ -61,12 +68,93 @@ class Selection:
         )
 
     def cache_key(self, kind: str, serving_date: date) -> str:
-        return f"v1:{self.school.value}:{self.grade}:Lunch:A Line:null:false:{kind}:{serving_date}"
+        return f"v2:{self.school.value}:{self.grade}:Lunch:A Line:null:false:{kind}:{serving_date}"
+
+
+def _paced_provider_call(call, *args, **kwargs):
+    global _last_request
+    time.sleep(max(0, 1 - (time.monotonic() - _last_request)))
+    try:
+        return call(*args, **kwargs)
+    finally:
+        _last_request = time.monotonic()
+
+
+def _resolve_served_together(client, categories: dict) -> list[list[int]]:
+    pairs: list[tuple[int, int]] = []
+    lookup: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for category, rows in categories.items():
+        if category == "CONDIMENTS" or not isinstance(rows, list):
+            continue
+        for item in rows:
+            if not isinstance(item, dict) or item.get("HasServeWith") is not True:
+                continue
+            menu_id = item.get("PEMenuId")
+            pe_item_id = item.get("PEMenuItemId")
+            if (
+                not isinstance(menu_id, int)
+                or isinstance(menu_id, bool)
+                or menu_id <= 0
+                or not isinstance(pe_item_id, int)
+                or isinstance(pe_item_id, bool)
+                or pe_item_id <= 0
+            ):
+                continue
+            key = (menu_id, pe_item_id)
+            try:
+                if key not in lookup:
+                    response = _paced_provider_call(
+                        client.get_menu_items_served_together,
+                        menu_id,
+                        pe_item_id,
+                        serving_size_by_grade=True,
+                    )
+                    lookup[key] = [
+                        (row["PrimaryPEMenuItemId"], row["SecondaryPEMenuItemId"])
+                        for row in response
+                        if isinstance(row, dict)
+                        and row.get("SecondaryPEMenuItemId") == pe_item_id
+                        and positive_id(row.get("PrimaryPEMenuItemId"))
+                        and positive_id(row.get("SecondaryPEMenuItemId"))
+                    ]
+                pairs.extend(lookup[key])
+            except ProviderError:
+                logger.warning("SchoolCafe served-together lookup failed for %s/%s", *key)
+    return [list(pair) for pair in dict.fromkeys(pairs)]
+
+
+def _resolve_week_relationships(client, payload: dict, start: date) -> dict[str, list[list[int]]]:
+    relationships = {}
+    for offset in range(5):
+        serving_date = start + timedelta(days=offset)
+        day_key = provider_date(serving_date)
+        categories = payload.get(day_key)
+        if not isinstance(categories, dict):
+            continue
+        has_items = any(
+            isinstance(row, dict)
+            and positive_id(row.get("MenuItemId"))
+            and positive_id(row.get("PEMenuItemId"))
+            for rows in categories.values()
+            if isinstance(rows, list)
+            for row in rows
+        )
+        if not has_items:
+            continue
+        try:
+            daily = _paced_provider_call(client.get_daily_menu, day_key)
+        except ProviderError:
+            logger.warning("SchoolCafe daily relationship discovery failed for %s", day_key)
+            continue
+        if isinstance(daily, dict):
+            pairs = _resolve_served_together(client, daily)
+            if pairs:
+                relationships[day_key] = pairs
+    return relationships
 
 
 def fetch_provider(selection: Selection, kind: str, serving_date: date) -> dict:
     """At most two attempts, serialized and paced across all request contexts."""
-    global _last_request
     with _provider_lock:
         client = SchoolCafeClient(
             school=selection.school,
@@ -75,16 +163,21 @@ def fetch_provider(selection: Selection, kind: str, serving_date: date) -> dict:
             timeout=settings.PROVIDER_TIMEOUT,
         )
         for attempt in range(2):
-            time.sleep(max(0, 1 - (time.monotonic() - _last_request)))
             try:
                 if kind == "weekly":
-                    return client.get_weekly_menu(provider_date(serving_date))
-                return client.get_daily_menu(provider_date(serving_date))
+                    payload = _paced_provider_call(
+                        client.get_weekly_menu, provider_date(serving_date)
+                    )
+                    if not isinstance(payload, dict):
+                        raise ProviderError("Invalid weekly response")
+                    relations = _resolve_week_relationships(client, payload, serving_date)
+                    if relations:
+                        payload["_served_together"] = relations
+                    return payload
+                return _paced_provider_call(client.get_daily_menu, provider_date(serving_date))
             except ProviderError as exc:
                 if not exc.retryable or attempt:
                     raise
-            finally:
-                _last_request = time.monotonic()
     raise AssertionError("Unreachable provider state")  # pragma: no cover
 
 
@@ -168,9 +261,17 @@ def load_week(selection: Selection, *, fetch=True) -> dict:
     for item in items:
         item.food_id = foods[item.source_id].pk
         item.preference = preferences.get(item.pe_id, "neutral")
+    confirmed = set(
+        SackLunch.objects.filter(
+            profile=default_profile(),
+            school_id=selection.school.value,
+            week_start=selection.start,
+        ).values_list("serving_date", flat=True)
+    )
+    confirmed_days = sack_lunch_days(days, confirmed)
     return {
         "days": days,
-        "summary": summarize(days),
+        "sack_lunch_days": confirmed_days,
         "selection": selection,
         "fetched_at": cached.fetched_at,
         "stale": cached.stale,
@@ -199,6 +300,24 @@ def save_preference(food: Food, value: str) -> None:
                 pe_id=food.pe_id,
                 defaults={"value": value, "food": food},
             )
+
+
+def save_sack_lunch(selection: Selection, serving_date: date, confirmed: bool) -> None:
+    if serving_date.weekday() >= 5 or monday(serving_date) != selection.start:
+        raise ValueError("Choose a weekday in the selected week.")
+    lookup = {
+        "profile": default_profile(),
+        "school_id": selection.school.value,
+        "serving_date": serving_date,
+    }
+    with transaction.atomic():
+        if confirmed:
+            SackLunch.objects.update_or_create(
+                **lookup,
+                defaults={"week_start": selection.start},
+            )
+        else:
+            SackLunch.objects.filter(**lookup).delete()
 
 
 def ingredients_for(selection: Selection, serving_date: date, item) -> str:

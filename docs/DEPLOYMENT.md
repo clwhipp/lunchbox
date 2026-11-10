@@ -21,7 +21,7 @@ Compose reads `.env`, which is excluded from source control and Docker's build c
 
 Published menus cache for 15 minutes; empty menus for 5 minutes; saved-data fallback lasts at most 24 hours. Provider calls are paced across the single process, use a 5-second timeout, and retry transient connection/server errors once. HTTP 429 is not retried. Policy constants live in `schoolmenu/config/settings.py`.
 
-This version uses one Gunicorn process, four threads, and local SQLite storage. Food identity is scoped to school and source item ID. Preferences persist across dates/grades within that school and are shared by the default child profile.
+This version uses one Gunicorn process, four threads, and local SQLite storage. Food identity is scoped to school and source item ID. Likes/dislikes persist across dates/grades within that school; sack-lunch confirmations are explicit weekday selections scoped to the child profile, school, and serving date, and therefore remain selected when the menu grade changes.
 
 ## Installation and household access
 

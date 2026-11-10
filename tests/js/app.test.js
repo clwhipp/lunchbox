@@ -134,6 +134,27 @@ describe("menu progressive enhancement", () => {
     vi.advanceTimersByTime(1);
     expect(doc.getElementById("save-status").textContent).toBe("");
   });
+  it("submits sack-lunch changes and restores the prior choice after failure", () => {
+    const sack = doc.createElement("form");
+    sack.className = "sack-lunch-form";
+    sack.dataset.savedState = "false";
+    sack.innerHTML = '<input type="checkbox" id="sack" value="true">';
+    doc.getElementById("week-panel").append(sack);
+    sack.requestSubmit = vi.fn();
+    const checkbox = sack.querySelector("input");
+
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new win.Event("change", { bubbles: true }));
+    expect(sack.requestSubmit).toHaveBeenCalledOnce();
+    fire("htmx:beforeRequest", { elt: sack });
+    expect(checkbox.disabled).toBe(true);
+    fire("htmx:afterRequest", { elt: sack, successful: false });
+    expect(checkbox.disabled).toBe(false);
+    expect(checkbox.checked).toBe(false);
+    expect(doc.getElementById("save-status").textContent).toContain(
+      "Could not save",
+    );
+  });
   it("opens and closes details and restores the opener", () => {
     const opener = doc.querySelector("a");
     dialog.dispatchEvent(new win.Event("close"));

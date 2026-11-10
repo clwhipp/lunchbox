@@ -140,7 +140,34 @@ class SchoolCafeClient:
     def build_weekly_url(self, serving_date: str | None = None) -> str:
         return self.build_url("Weekly", serving_date)
 
-    def _get_json(self, url: str) -> dict[str, Any]:
+    def build_served_together_url(
+        self, pe_menu_id: int, pe_menu_item_id: int, *, serving_size_by_grade: bool
+    ) -> str:
+        params = {
+            "SchoolId": self.school_id,
+            "PEMenuId": pe_menu_id,
+            "PEMenuItemId": pe_menu_item_id,
+            "Grade": self.grade,
+            "ServingSizeByGrade": self._as_text(serving_size_by_grade),
+            "PersonId": self.person_id or "00000000-0000-0000-0000-000000000000",
+        }
+        return f"{self.BASE_URL}/GetMenuItemsServedTogether?{urlencode(params)}"
+
+    def get_menu_items_served_together(
+        self, pe_menu_id: int, pe_menu_item_id: int, *, serving_size_by_grade: bool
+    ) -> list[dict[str, Any]]:
+        """Fetch the entrée/choice-item pairs containing the requested menu item."""
+        result = self._get_json(
+            self.build_served_together_url(
+                pe_menu_id, pe_menu_item_id, serving_size_by_grade=serving_size_by_grade
+            ),
+            expected_type=list,
+        )
+        if not all(isinstance(row, dict) for row in result):
+            raise ProviderError("Invalid served-together response")
+        return result
+
+    def _get_json(self, url: str, *, expected_type: type = dict) -> Any:
         request = Request(
             url,
             headers={
@@ -171,8 +198,8 @@ class SchoolCafeClient:
             result = json.loads(body)
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ProviderError("SchoolCafe returned invalid JSON") from exc
-        if not isinstance(result, dict):
-            raise ProviderError("Expected a JSON object from SchoolCafe")
+        if not isinstance(result, expected_type):
+            raise ProviderError(f"Expected a JSON {expected_type.__name__} from SchoolCafe")
         return result
 
     def get_daily_menu(self, serving_date: str | None = None) -> dict[str, Any]:

@@ -43,6 +43,47 @@ def test_url_and_configuration():
         client.build_url("other")
 
 
+def test_build_and_fetch_served_together(monkeypatch):
+    response = [
+        {
+            "PrimaryPEMenuItemId": 52772,
+            "SecondaryPEMenuItemId": 15778,
+            "MenuItemDescription": "Beef Taco Meat",
+        }
+    ]
+    requests = []
+
+    def transport(request, timeout):
+        requests.append(request)
+        return BytesIO(json.dumps(response).encode())
+
+    monkeypatch.setattr("schoolmenu.provider.urlopen", transport)
+    client = SchoolCafeClient(request_delay=0)
+
+    result = client.get_menu_items_served_together(421799, 15778, serving_size_by_grade=True)
+
+    query = parse_qs(urlparse(requests[0].full_url).query)
+    assert query["SchoolId"] == [School.NORTHEAST_ELEMENTARY.value]
+    assert query["PEMenuId"] == ["421799"]
+    assert query["PEMenuItemId"] == ["15778"]
+    assert query["Grade"] == ["01"]
+    assert query["ServingSizeByGrade"] == ["true"]
+    assert query["PersonId"] == ["00000000-0000-0000-0000-000000000000"]
+    assert result == response
+
+
+def test_served_together_rejects_invalid_response_entries(monkeypatch):
+    monkeypatch.setattr(
+        "schoolmenu.provider.urlopen",
+        lambda *args, **kwargs: BytesIO(json.dumps([None]).encode()),
+    )
+
+    with pytest.raises(ProviderError, match="Invalid served-together response"):
+        SchoolCafeClient(request_delay=0).get_menu_items_served_together(
+            421799, 15778, serving_size_by_grade=True
+        )
+
+
 def test_transport_and_pacing(monkeypatch):
     requests = []
     sleeps = []
