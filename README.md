@@ -1,6 +1,6 @@
 # Lunchbox · SchoolCafe family menu
 
-A Dockerized Django application for Monday–Friday school menus, food photos, allergen and nutrition details, and a lunch-from-home summary based on one child's SQLite-backed preferences.
+A Dockerized Django application for Monday–Friday school menus, food photos, allergen and nutrition details, persistent food preferences, and explicit per-day sack-lunch planning in SQLite.
 
 ## Run with Docker
 
@@ -30,13 +30,15 @@ Menu data is cached. A source outage can use a clearly labeled saved menu for up
 
 ## Screenshots
 
-These representative views use captured SchoolCafe sample data and synthetic preferences in an isolated demo database.
+These representative views use captured SchoolCafe sample data and synthetic preferences in an isolated demo database. The first two show the new explicit sack-lunch confirmation; the focused mobile view shows a served-together choice nested under its entrée.
 
-![Desktop weekly menu with summary cards and compact disliked foods](docs/screenshots/weekly-menu-desktop.png)
+![Desktop weekly menu with a confirmed sack lunch and a linked choice under its parent entrée](docs/screenshots/weekly-menu-desktop.png)
+
+![Responsive mobile menu with a confirmed sack lunch](docs/screenshots/mobile-menu.png)
+
+![Beef Taco Meat with Nacho Cheese Doritos nested beneath it](docs/screenshots/served-together-choice-mobile.png)
 
 ![Food details dialog with nutrition, allergens, and ingredients](docs/screenshots/food-details.png)
-
-![Responsive mobile weekly menu](docs/screenshots/mobile-menu.png)
 
 The `schoolcafe_data` Docker volume stores `/data/schoolcafe.sqlite3` and its WAL files. The non-root runtime uses Gunicorn and locally served static assets. Readiness is available at `/health/ready`. See [deployment, backups, updates, and household access](docs/DEPLOYMENT.md).
 

@@ -68,6 +68,46 @@ def test_served_together_choice_is_indented_under_parent_entree(page, menu_serve
     expect(parent.locator(".related-items")).to_be_visible()
 
 
+def test_capture_lunch_planning_feature_screenshots(page, menu_server, monkeypatch):
+    payload = json.loads((SAMPLES / "weekly-2026-11-09.json").read_text())
+    tuesday = payload["11/10/2026"]
+    entree = next(
+        row for row in tuesday["ENTREES"] if row["MenuItemDescription"] == "Beef Taco Meat"
+    )
+    choice = next(
+        row for row in tuesday["GRAINS"] if row["MenuItemDescription"] == "Nacho Cheese Doritos"
+    )
+    payload["_served_together"] = {"11/10/2026": [[entree["PEMenuItemId"], choice["PEMenuItemId"]]]}
+    monkeypatch.setattr(services, "fetch_provider", lambda *args: payload)
+    services.save_sack_lunch(
+        services.Selection.parse(
+            {"week": "2026-11-09", "school": "NORTHEAST_ELEMENTARY", "grade": "01"}
+        ),
+        date(2026, 11, 9),
+        True,
+    )
+    screenshots = Path("docs/screenshots")
+    screenshots.mkdir(parents=True, exist_ok=True)
+
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    page.goto(menu_server)
+    expect(
+        page.get_by_role("checkbox", name="Sack lunch for Monday, November 9", exact=True)
+    ).to_be_checked()
+    expect(page.locator(".sack-summary")).to_contain_text("Mon, Nov 9")
+    linked_item = page.locator("#day-2026-11-10 .menu-item-entry").filter(has_text="Beef Taco Meat")
+    expect(linked_item.locator(".related-items")).to_contain_text("Nacho Cheese Doritos")
+    page.screenshot(path=str(screenshots / "weekly-menu-desktop.png"), full_page=True)
+
+    page.set_viewport_size({"width": 390, "height": 1280})
+    page.goto(menu_server)
+    expect(
+        page.get_by_role("checkbox", name="Sack lunch for Monday, November 9", exact=True)
+    ).to_be_checked()
+    page.screenshot(path=str(screenshots / "mobile-menu.png"))
+    linked_item.screenshot(path=str(screenshots / "served-together-choice-mobile.png"))
+
+
 def test_sack_lunch_summary_and_new_browser_context(page, browser, menu_server):
     page.goto(menu_server)
     tuesday = page.get_by_role("checkbox", name="Sack lunch for Tuesday, November 10", exact=True)
