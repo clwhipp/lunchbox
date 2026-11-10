@@ -78,12 +78,44 @@ def test_real_preferences_propagate_across_days_and_reloads(monkeypatch, weekly,
     assert [d.date.weekday() for d in week["summary"]["school"]] == [1, 3]
     assert FoodPreference.objects.count() == 4
     save_preference(chicken, "disliked")
-    assert FoodPreference.objects.get(food=chicken).value == "disliked"
+    assert (
+        FoodPreference.objects.get(profile=services.default_profile(), pe_id=chicken.pe_id).value
+        == "disliked"
+    )
     save_preference(chicken, "neutral")
-    assert not FoodPreference.objects.filter(food=chicken).exists()
+    assert not FoodPreference.objects.filter(
+        profile=services.default_profile(), pe_id=chicken.pe_id
+    ).exists()
     assert fetch.call_count == 1
     with pytest.raises(ValueError):
         save_preference(chicken, "both")
+
+
+def test_preferences_carry_across_schools(monkeypatch, weekly, selection):
+    southeast_weekly = deepcopy(weekly)
+    for raw_day in southeast_weekly.values():
+        for rows in raw_day.values():
+            for row in rows if isinstance(rows, list) else []:
+                if isinstance(row, dict) and row.get("MenuItemDescription") == "Baby Carrots":
+                    row["MenuItemId"] = 999999
+    monkeypatch.setattr(services, "fetch_provider", Mock(side_effect=[weekly, southeast_weekly]))
+
+    northeast = load_week(selection)
+    northeast_carrots = next(
+        item for day in northeast["days"] for item in day.items if item.name == "Baby Carrots"
+    )
+    save_preference(Food.objects.get(pk=northeast_carrots.food_id), "disliked")
+
+    southeast_selection = Selection(School.SOUTHEAST_ELEMENTARY, selection.grade, selection.start)
+    southeast = load_week(southeast_selection)
+    southeast_carrots = next(
+        item for day in southeast["days"] for item in day.items if item.name == "Baby Carrots"
+    )
+
+    assert northeast_carrots.source_id != southeast_carrots.source_id
+    assert northeast_carrots.pe_id == southeast_carrots.pe_id
+    assert northeast_carrots.food_id != southeast_carrots.food_id
+    assert southeast_carrots.preference == "disliked"
 
 
 def test_context_and_profile_isolation(monkeypatch, weekly, selection):
@@ -91,7 +123,7 @@ def test_context_and_profile_isolation(monkeypatch, weekly, selection):
     week = load_week(selection)
     food = Food.objects.get(pk=week["days"][0].entrees[0].food_id)
     other = ChildProfile.objects.create(label="Other")
-    FoodPreference.objects.create(profile=other, food=food, value="liked")
+    FoodPreference.objects.create(profile=other, pe_id=food.pe_id, value="liked")
     assert load_week(selection)["days"][0].entrees[0].preference == "neutral"
     other_school = Selection(School.ABBIE_GROVE, "01", selection.start)
     assert load_week(other_school)["days"][0].entrees[0].food_id != food.pk
@@ -104,8 +136,8 @@ def test_database_constraints(monkeypatch, weekly, selection):
     save_preference(food, "liked")
     profile = services.default_profile()
     for fields in [
-        {"profile": profile, "food": food, "value": "disliked"},
-        {"profile": profile, "food": food, "value": "invalid"},
+        {"profile": profile, "pe_id": food.pe_id, "value": "disliked"},
+        {"profile": profile, "pe_id": food.pe_id, "value": "invalid"},
     ]:
         with pytest.raises(IntegrityError), transaction.atomic():
             FoodPreference.objects.create(**fields)

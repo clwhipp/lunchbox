@@ -162,12 +162,12 @@ def load_week(selection: Selection, *, fetch=True) -> dict:
     preferences = dict(
         FoodPreference.objects.filter(
             profile=default_profile(),
-            food__in=foods.values(),
-        ).values_list("food_id", "value")
+            pe_id__in={i.pe_id for i in items},
+        ).values_list("pe_id", "value")
     )
     for item in items:
         item.food_id = foods[item.source_id].pk
-        item.preference = preferences.get(item.food_id, "neutral")
+        item.preference = preferences.get(item.pe_id, "neutral")
     return {
         "days": days,
         "summary": summarize(days),
@@ -192,10 +192,12 @@ def save_preference(food: Food, value: str) -> None:
     with transaction.atomic():
         profile = default_profile()
         if value == "neutral":
-            FoodPreference.objects.filter(profile=profile, food=food).delete()
+            FoodPreference.objects.filter(profile=profile, pe_id=food.pe_id).delete()
         else:
             FoodPreference.objects.update_or_create(
-                profile=profile, food=food, defaults={"value": value}
+                profile=profile,
+                pe_id=food.pe_id,
+                defaults={"value": value, "food": food},
             )
 
 

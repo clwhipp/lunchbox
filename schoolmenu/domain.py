@@ -17,8 +17,8 @@ CATEGORIES = {
     "DRINKS": ("Drinks", "main"),
     "FRUITS": ("Fruit", "extra"),
     "GRAINS": ("Grains", "extra"),
-    "CONDIMENTS": ("Condiments", "extra"),
 }
+HIDDEN_CATEGORIES = {"CONDIMENTS"}
 NUTRIENTS = (
     ("Calories", "Calories", "kcal"),
     ("TotalFat", "Total fat", "g"),
@@ -28,7 +28,7 @@ NUTRIENTS = (
 )
 STATUSES = {
     "pack": "Lunch from home likely",
-    "school": "School lunch likely",
+    "school": "School lunch potentially",
     "review": "Needs review",
     "unavailable": "No entrée menu published",
 }
@@ -52,8 +52,8 @@ def positive_id(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
-def thumbnail(url: object, has_image: object) -> str:
-    if not has_image or not isinstance(url, str):
+def thumbnail(url: object) -> str:
+    if not isinstance(url, str):
         return ""
     parsed = urlparse(url)
     if parsed.scheme == "https" and parsed.netloc == "onlineservice.primeroedge.com":
@@ -140,7 +140,7 @@ def normalize_item(raw: object, category: str) -> Item | None:
         name=name.strip(),
         category=category,
         serving_size=str(raw.get("ServingSizeByGrade") or ""),
-        image=thumbnail(raw.get("ThumbnailImageURL"), raw.get("HasImage")),
+        image=thumbnail(raw.get("ThumbnailImageURL")),
         allergens=str(raw.get("AllergenDisplay") or "Allergen information not supplied."),
         nutrition=nutrients(raw),
     )
@@ -157,6 +157,8 @@ def normalize_week(payload: object, start: date) -> list[Day]:
         if not isinstance(categories, dict):
             raise ProviderError("Invalid day response")
         for category, rows in categories.items():
+            if category in HIDDEN_CATEGORIES:
+                continue
             label, section = CATEGORIES.get(category, (f"Other · {category}", "extra"))
             group = Group(label, section)
             if not isinstance(rows, list):

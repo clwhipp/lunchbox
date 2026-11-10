@@ -19,8 +19,8 @@ USE_TZ = True
 LANGUAGE_CODE = "en-us"
 DEFAULT_SCHOOL = os.environ.get("SCHOOL", "NORTHEAST_ELEMENTARY")
 DEFAULT_GRADE = os.environ.get("GRADE", "01")
-# Only 01 was proven by the initial script. Deployments can explicitly add codes.
-SUPPORTED_GRADES = os.environ.get("SUPPORTED_GRADES", "01").split(",")
+# Checked against Northeast Elementary weekly menus for grades 01 through 05.
+SUPPORTED_GRADES = os.environ.get("SUPPORTED_GRADES", "01,02,03,04,05").split(",")
 if DEFAULT_GRADE not in SUPPORTED_GRADES:
     raise ImproperlyConfigured("GRADE must be in SUPPORTED_GRADES")
 DATABASES = {

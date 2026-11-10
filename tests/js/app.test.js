@@ -10,7 +10,7 @@ describe("menu progressive enhancement", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     win = new JSDOM(
-      `<body><div id="save-status"></div><dialog id="food-dialog"><button data-close-dialog>Close</button><div id="dialog-content"></div></dialog><div id="week-panel"><a data-food-detail href="/food">Food</a><form class="preference-form" data-saved-state="neutral"><input type="hidden" name="state" value="neutral"><input type="checkbox" id="like" value="liked"><input type="checkbox" id="dislike" value="disliked"><button name="state" value="liked">Like</button><button name="state" value="neutral">Clear</button></form></div><input id="other" type="date"><img id="photo" src="broken" data-fallback="/plate.svg"></body>`,
+      `<body><div id="save-status"></div><dialog id="food-dialog"><button data-close-dialog>Close</button><div id="dialog-content"></div></dialog><div id="week-panel"><label><input id="compact-disliked" type="checkbox" checked>Compact disliked items</label><a data-food-detail href="/food">Food</a><form class="preference-form" data-saved-state="neutral"><input type="hidden" name="state" value="neutral"><input type="checkbox" id="like" value="liked"><input type="checkbox" id="dislike" value="disliked"><button name="state" value="liked">Like</button><button name="state" value="neutral">Clear</button></form></div><input id="other" type="date"><img id="photo" src="broken" data-fallback="/plate.svg"></body>`,
       { url: "http://localhost" },
     ).window;
     doc = win.document;
@@ -26,6 +26,59 @@ describe("menu progressive enhancement", () => {
   afterEach(() => {
     vi.useRealTimers();
     win.close();
+  });
+  it("compacts disliked foods by default and keeps the choice after week swaps", () => {
+    const toggle = doc.getElementById("compact-disliked");
+    expect(doc.body.classList.contains("compact-disliked")).toBe(true);
+    expect(toggle.checked).toBe(true);
+
+    toggle.checked = false;
+    toggle.dispatchEvent(new win.Event("change", { bubbles: true }));
+    expect(doc.body.classList.contains("compact-disliked")).toBe(false);
+    expect(win.localStorage.getItem("lunchbox.compactDisliked")).toBe("false");
+
+    const panel = doc.getElementById("week-panel");
+    panel.innerHTML =
+      '<label><input id="compact-disliked" type="checkbox" checked>Compact disliked items</label>';
+    fire("htmx:afterSwap", { target: panel });
+    expect(doc.getElementById("compact-disliked").checked).toBe(false);
+    panel.innerHTML = "";
+    fire("htmx:afterSwap", { target: panel });
+  });
+  it("loads a previously disabled preference", () => {
+    const stored = new JSDOM(
+      '<body><div id="save-status"></div><dialog id="food-dialog"></dialog><div id="week-panel"><input id="compact-disliked" type="checkbox" checked></div></body>',
+      { url: "http://localhost" },
+    );
+    stored.window.localStorage.setItem("lunchbox.compactDisliked", "false");
+    init(stored.window.document);
+    expect(
+      stored.window.document.body.classList.contains("compact-disliked"),
+    ).toBe(false);
+    expect(
+      stored.window.document.getElementById("compact-disliked").checked,
+    ).toBe(false);
+    stored.window.close();
+  });
+  it("keeps menu controls usable when browser storage is blocked", () => {
+    const blocked = new JSDOM(
+      '<body><div id="save-status"></div><dialog id="food-dialog"></dialog><div id="week-panel"><input id="compact-disliked" type="checkbox" checked></div></body>',
+      { url: "http://localhost" },
+    );
+    Object.defineProperty(blocked.window, "localStorage", {
+      configurable: true,
+      get() {
+        throw new Error("Storage blocked");
+      },
+    });
+    const blockedDoc = blocked.window.document;
+    init(blockedDoc);
+    const toggle = blockedDoc.getElementById("compact-disliked");
+    expect(blockedDoc.body.classList.contains("compact-disliked")).toBe(true);
+    toggle.checked = false;
+    toggle.dispatchEvent(new blocked.window.Event("change", { bubbles: true }));
+    expect(blockedDoc.body.classList.contains("compact-disliked")).toBe(false);
+    blocked.window.close();
   });
   it("selects one preference, switches, and clears", () => {
     like.checked = true;
@@ -74,6 +127,12 @@ describe("menu progressive enhancement", () => {
     expect(doc.getElementById("save-status").textContent).toContain(
       "Could not save",
     );
+    vi.advanceTimersByTime(4999);
+    expect(doc.getElementById("save-status").textContent).toContain(
+      "Could not save",
+    );
+    vi.advanceTimersByTime(1);
+    expect(doc.getElementById("save-status").textContent).toBe("");
   });
   it("opens and closes details and restores the opener", () => {
     const opener = doc.querySelector("a");
@@ -103,6 +162,8 @@ describe("menu progressive enhancement", () => {
     expect(doc.getElementById("save-status").textContent).toContain(
       "Could not load",
     );
+    vi.advanceTimersByTime(5000);
+    expect(doc.getElementById("save-status").textContent).toBe("");
     fire("htmx:afterSwap", { target: doc.getElementById("week-panel") });
     fire("htmx:afterSwap", { target: doc.body });
     expect(dialog.showModal).not.toHaveBeenCalled();
