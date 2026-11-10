@@ -41,11 +41,11 @@ def test_weekend_defaults_advance_to_next_school_week(today, expected):
 @pytest.mark.parametrize(
     "day,count",
     [
-        ("2026-11-02", 55),
-        ("2026-11-04", 32),
-        ("2026-11-08", 36),
-        ("2026-11-09", 47),
-        ("2026-11-11", 21),
+        ("2026-11-02", 46),
+        ("2026-11-04", 27),
+        ("2026-11-08", 27),
+        ("2026-11-09", 36),
+        ("2026-11-11", 17),
         ("2026-12-28", 0),
     ],
 )
@@ -70,16 +70,31 @@ def test_calendar_always_uses_monday(start):
 def test_real_week(weekly):
     days = normalize_week(weekly, date(2026, 11, 9))
     assert len(days) == 5
-    assert sum(len(d.items) for d in days) == 47
-    assert sum(bool(i.image) for d in days for i in d.items) == 23
+    assert sum(len(d.items) for d in days) == 36
+    assert sum(bool(i.image) for d in days for i in d.items) == 36
+    assert not any(i.category == "CONDIMENTS" for d in days for i in d.items)
     assert not days[2].items
     assert len(days[0].entrees) == 3
     assert days[0].entrees[0].name == "Cheese Pizzable"
     assert len(days[0].main_groups) == 4
-    assert len(days[0].extra_groups) == 2
+    assert len(days[0].extra_groups) == 1
     assert days[0].entrees[0].nutrition[-1]["value"] == 674.63
     assert "May contain Soy" in days[0].entrees[0].allergens
     assert not any(d.incomplete for d in days)
+
+
+def test_beef_taco_thumbnail_is_checked_even_when_flag_is_false(weekly):
+    raw = next(
+        item
+        for day in weekly.values()
+        for rows in day.values()
+        for item in rows
+        if item.get("MenuItemDescription") == "Beef Taco Meat"
+    )
+    assert raw["HasImage"] is False
+    item = normalize_item(raw, "ENTREES")
+    assert item is not None
+    assert item.image == raw["ThumbnailImageURL"]
 
 
 def test_unknown_malformed_and_missing(weekly):
@@ -144,21 +159,19 @@ def test_nutrients_missing_is_not_zero(value, expected):
 
 
 @pytest.mark.parametrize(
-    "url,flag,expected",
+    "url,expected",
     [
-        (None, True, ""),
-        ("https://evil.com/a", True, ""),
-        ("http://onlineservice.primeroedge.com/a", True, ""),
-        ("https://onlineservice.primeroedge.com/a", False, ""),
+        (None, ""),
+        ("https://evil.com/a", ""),
+        ("http://onlineservice.primeroedge.com/a", ""),
         (
             "https://onlineservice.primeroedge.com/a",
-            True,
             "https://onlineservice.primeroedge.com/a",
         ),
     ],
 )
-def test_image_allowlist(url, flag, expected):
-    assert thumbnail(url, flag) == expected
+def test_image_allowlist(url, expected):
+    assert thumbnail(url) == expected
 
 
 def item(state, category="ENTREES"):
@@ -181,6 +194,8 @@ def test_lunch_decision_table(states, expected):
     summary = summarize([day])
     assert summary[expected] == [day]
     assert sum(map(len, summary.values())) == 1
+    if expected == "school":
+        assert day.status_label == "School lunch potentially"
 
 
 def test_side_preferences_and_incomplete_entrees():

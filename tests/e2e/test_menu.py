@@ -74,6 +74,49 @@ def test_preferences_summary_and_new_browser_context(page, browser, menu_server)
         fresh.close()
 
 
+def test_disliked_foods_can_be_compacted_and_restored(page, menu_server):
+    page.goto(menu_server)
+    toggle = page.get_by_role("checkbox", name="Compact disliked items", exact=True)
+    expect(toggle).to_be_checked()
+
+    first_dislike = page.get_by_role(
+        "checkbox", name="Dislikes Cheese Pizzable on Monday", exact=True
+    )
+    first_card = page.locator(".food-card").filter(
+        has=page.get_by_role("link", name=re.compile("Cheese Pizzable"))
+    )
+    first_photo = first_card.locator(".food-photo")
+    first_like = page.get_by_role("checkbox", name="Likes Cheese Pizzable on Monday", exact=True)
+    first_dislike.check()
+    expect(first_card).to_have_class(re.compile(r"\bdisliked\b"))
+    expect(first_photo).to_be_hidden()
+    expect(first_card.get_by_role("link")).to_be_visible()
+    expect(first_dislike).to_be_visible()
+    expect(first_like).to_be_hidden()
+
+    toggle.uncheck()
+    expect(first_photo).to_be_visible()
+    second_dislike = page.get_by_role(
+        "checkbox", name="Dislikes Cheeseburger on Monday", exact=True
+    )
+    second_card = page.locator(".food-card").filter(
+        has=page.get_by_role("link", name=re.compile("Cheeseburger"))
+    )
+    second_photo = second_card.locator(".food-photo")
+    second_dislike.check()
+    expect(toggle).not_to_be_checked()
+    expect(second_photo).to_be_visible()
+
+    toggle.check()
+    expect(first_photo).to_be_hidden()
+    expect(second_photo).to_be_hidden()
+    first_dislike.uncheck()
+    expect(first_photo).to_be_visible()
+    expect(first_card).to_have_class(re.compile(r"\bneutral\b"))
+    page.reload()
+    expect(page.get_by_role("checkbox", name="Compact disliked items", exact=True)).to_be_checked()
+
+
 def test_failed_save_rolls_back_checkbox(page, menu_server):
     page.goto(menu_server)
     page.route("**/preference/", lambda route: route.fulfill(status=503, body="Unavailable"))
@@ -82,6 +125,7 @@ def test_failed_save_rolls_back_checkbox(page, menu_server):
     expect(page.get_by_role("status")).to_contain_text("Could not save")
     expect(box).not_to_be_checked()
     expect(box).to_be_enabled()
+    expect(page.locator("#save-status")).to_have_text("", timeout=7000)
 
 
 @pytest.mark.parametrize("width", [320, 768, 1440])
@@ -107,6 +151,7 @@ def test_broken_image_fallback(page, menu_server):
     burger = page.locator(".food-card").filter(
         has=page.get_by_role("link", name="Cheeseburger 1 ea.", exact=True)
     )
+    burger.scroll_into_view_if_needed()
     expect(burger.locator("img")).to_have_attribute("src", re.compile("plate.svg$"))
 
 

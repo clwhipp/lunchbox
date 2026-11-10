@@ -1,6 +1,6 @@
 {% extends 'menus/base.html' %}
 {% block content %}
-<section class="page-intro"><div><p class="eyebrow">THE WEEKLY LUNCH PLAN</p><h1>Good food. Happier school days.</h1><p>Explore the menu, save their favorites, and see when to pack a lunch.</p></div>
+<section class="page-intro">
   <form class="school-settings" method="get"><input type="hidden" name="week" value="{{ selection.start|date:'Y-m-d' }}"><label>School<select name="school">{% for value,label in schools %}<option value="{{ value }}" {% if value == selection.school.name %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label><label>Grade<select name="grade">{% for grade in grades %}<option value="{{ grade }}" {% if grade == selection.grade %}selected{% endif %}>{{ grade }}</option>{% endfor %}</select></label><button type="submit" class="button secondary">Apply</button></form>
 </section>
 <nav class="week-nav" aria-label="Week navigation">

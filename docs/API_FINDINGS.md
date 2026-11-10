@@ -52,9 +52,9 @@ Use the response's date keys for scheduling. Item-level `ServingDate` is an upst
 | `MILK` | Drinks |
 | `FRUITS` | Fruit |
 | `GRAINS` | Grains |
-| `CONDIMENTS` | Condiments |
+| `CONDIMENTS` | Omitted from the family menu |
 
-Preserve the two vegetable subgroups so the interface does not imply all choices are necessarily interchangeable. Keep fruit, grains, and condiments accessible below the main groups. Retain unknown future categories in an “Other” group with their source labels. Categories are not a closed enum supplied by a formal contract.
+Preserve the two vegetable subgroups so the interface does not imply all choices are necessarily interchangeable. Keep fruit and grains accessible below the main groups; condiments are intentionally omitted from the family menu. Retain unknown future categories in an “Other” group with their source labels. Categories are not a closed enum supplied by a formal contract.
 
 Weekly items include `DisplayOrder`, but multiple items can have the same value. Use it with stable source order as the tie-breaker. Trim names for presentation without using names as identity.
 
@@ -93,7 +93,7 @@ The response exposes four relevant identifiers:
 
 For example, Popcorn Chicken has `MenuItemId=43863` and `PEMenuItemId=32008` across several dates in both sampled weeks. Skim Milk has `MenuItemId=16641` and `PEMenuItemId=15453` across both weeks. No observed `PEMenuItemId` mapped to multiple names or `MenuItemId` values in this sample set.
 
-**Proposed preference key:** child profile plus `(source, school_id, MenuItemId)`. This survives date, category, and grade changes for the same food within the school. Store `PEMenuItemId` too, but do not silently merge foods based on names, image URLs, or cross-school IDs. Global uniqueness and long-term ID reuse are not documented by these samples.
+**Current preference key:** child profile plus `PEMenuItemId`. Live grade-1 weekly menus for Northeast and Southeast Elementary (week of 2026-11-09) share 33 normalized item names with matching `MenuItemId` and `PEMenuItemId` values; Baby Carrots specifically has `PEMenuItemId=31787` in both schools. The app keys the preference on `PEMenuItemId` so it applies across school-specific `MenuItemId` rows. This is observed behavior, not a formal provider guarantee; monitor for ID changes or reuse.
 
 ## 5. Weekly and daily data complement each other
 
@@ -133,9 +133,9 @@ Some text distinguishes “Contains” from “May contain.” For Cheese Pizzab
 
 For November 9–13, there are **47 real food occurrences**, of which **23** have `HasImage=true`. The November 2–6 sample contains 55 real occurrences, 25 with that flag.
 
-Real items can have a nonempty `ThumbnailImageURL` even when `HasImage=false`. The weekly `Image` strings are empty in the examined real records. Thumbnail availability and image content were not fetched or independently verified.
+Real items can have a nonempty `ThumbnailImageURL` even when `HasImage=false`. The weekly `Image` strings are empty in the examined real records. In a later live check, **Beef Taco Meat** had `HasImage=false` but its thumbnail endpoint returned a valid JPEG, confirming the flag can be inaccurate.
 
-Use `HasImage` plus an HTTPS URL from the known upstream image host as an initial hint; still handle failed loads. Show a bundled food/category illustration when a photo is absent or broken. Preserve names, serving sizes, and accessible alt text without depending on photos. `MenuItemDescription` is the available description; render it as text, not HTML.
+Use the allowlisted HTTPS thumbnail URL as a candidate, but do not gate the request on `HasImage`. Fetch the upstream thumbnail endpoint, decode and validate the image, and show the bundled illustration when the endpoint has no valid image. Preserve names, serving sizes, and accessible alt text without depending on photos. `MenuItemDescription` is the available description; render it as text, not HTML.
 
 ## 8. Nutrient scaling and units are verification points
 
