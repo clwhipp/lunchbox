@@ -28,6 +28,16 @@ Defaults match the original API client: **Northeast Elementary**, **grade 01**, 
 
 Menu data is cached. A source outage can use a clearly labeled saved menu for up to 24 hours. Preference saves do not require SchoolCafe and are never sent to it. This is a shared household application with one default child profile, not a multi-account service.
 
+## Screenshots
+
+These representative views use captured SchoolCafe sample data and synthetic preferences in an isolated demo database.
+
+![Desktop weekly menu with summary cards and compact disliked foods](docs/screenshots/weekly-menu-desktop.png)
+
+![Food details dialog with nutrition, allergens, and ingredients](docs/screenshots/food-details.png)
+
+![Responsive mobile weekly menu](docs/screenshots/mobile-menu.png)
+
 The `schoolcafe_data` Docker volume stores `/data/schoolcafe.sqlite3` and its WAL files. The non-root runtime uses Gunicorn and locally served static assets. Readiness is available at `/health/ready`. See [deployment, backups, updates, and household access](docs/DEPLOYMENT.md).
 
 ## Publish to Docker Hub
