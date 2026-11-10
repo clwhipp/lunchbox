@@ -177,4 +177,38 @@ describe("menu progressive enhancement", () => {
     doc.dispatchEvent(new win.Event("error"));
     expect(photo.src).toBe("http://localhost/plate.svg");
   });
+  it("recovers images that failed before initialization and preserves healthy or pending images", () => {
+    const early = new JSDOM(
+      '<body><div id="save-status"></div><dialog id="food-dialog"></dialog><img id="broken" src="broken" data-fallback="/plate.svg"><img id="loaded" src="loaded" data-fallback="/plate.svg"><img id="pending" src="pending" data-fallback="/plate.svg"></body>',
+      { url: "http://localhost" },
+    );
+    const earlyDoc = early.window.document;
+    const broken = earlyDoc.getElementById("broken");
+    const loaded = earlyDoc.getElementById("loaded");
+    const pending = earlyDoc.getElementById("pending");
+    Object.defineProperty(broken, "complete", { value: true });
+    Object.defineProperties(loaded, {
+      complete: { value: true },
+      naturalWidth: { value: 64 },
+    });
+
+    init(earlyDoc);
+
+    expect(broken.getAttribute("src")).toBe("/plate.svg");
+    expect(broken.hasAttribute("data-fallback")).toBe(false);
+    expect(loaded.getAttribute("src")).toBe("loaded");
+    expect(loaded.hasAttribute("data-fallback")).toBe(true);
+    expect(pending.complete).toBe(false);
+    expect(pending.getAttribute("src")).toBe("pending");
+    expect(pending.hasAttribute("data-fallback")).toBe(true);
+    early.window.close();
+  });
+  it("replaces broken images inserted after initialization", () => {
+    const panel = doc.getElementById("week-panel");
+    panel.innerHTML = '<img src="broken" data-fallback="/plate.svg">';
+    const photo = panel.querySelector("img");
+    photo.dispatchEvent(new win.Event("error"));
+    expect(photo.getAttribute("src")).toBe("/plate.svg");
+    expect(photo.hasAttribute("data-fallback")).toBe(false);
+  });
 });
