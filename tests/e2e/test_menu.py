@@ -121,7 +121,8 @@ def test_failed_save_rolls_back_checkbox(page, menu_server):
     page.goto(menu_server)
     page.route("**/preference/", lambda route: route.fulfill(status=503, body="Unavailable"))
     box = page.get_by_role("checkbox", name="Likes Cheeseburger on Monday", exact=True)
-    box.check()
+    # A fast failed response can undo the click before check() verifies the state.
+    box.click()
     expect(page.get_by_role("status")).to_contain_text("Could not save")
     expect(box).not_to_be_checked()
     expect(box).to_be_enabled()
@@ -142,7 +143,16 @@ def test_responsive_menu_has_no_horizontal_overflow(page, menu_server, width):
         page.screenshot(path="artifacts/weekly-mobile.png", full_page=True)
 
 
-def test_broken_image_fallback(page, menu_server):
+@pytest.mark.parametrize("before_init", [False, True])
+def test_broken_image_fallback(page, menu_server, before_init):
+    if before_init:
+        page.route(
+            "**/bootstrap.js",
+            lambda route: route.fulfill(
+                content_type="text/javascript",
+                body='import { init } from "./app.js"; window.initMenu = () => init(document);',
+            ),
+        )
     page.route(
         "**/thumbnail/",
         lambda route: route.fulfill(status=404, body="missing"),
@@ -152,21 +162,24 @@ def test_broken_image_fallback(page, menu_server):
         has=page.get_by_role("link", name="Cheeseburger 1 ea.", exact=True)
     )
     burger.scroll_into_view_if_needed()
+    if before_init:
+        expect(page.locator("body")).not_to_have_class(re.compile(r"\bjs-enabled\b"))
+        page.wait_for_function(
+            "img => img.complete && img.naturalWidth === 0",
+            arg=burger.locator("img").element_handle(),
+        )
+        page.evaluate("window.initMenu()")
     expect(burger.locator("img")).to_have_attribute("src", re.compile("plate.svg$"))
 
 
-def test_plain_html_without_javascript(browser, menu_server):
-    context = browser.new_context(java_script_enabled=False)
-    try:
-        page = context.new_page()
-        page.goto(menu_server)
-        card = page.locator(".food-card").filter(
-            has=page.get_by_role("link", name="Cheeseburger 1 ea.", exact=True)
-        )
-        card.get_by_role("button", name="Like", exact=True).click()
-        expect(card).to_have_attribute("data-preference", "liked")
-        card.get_by_role("link").click()
-        expect(page.get_by_role("heading", name="Cheeseburger", exact=True)).to_be_visible()
-        expect(page.locator(".nutrition")).to_contain_text("Sodium")
-    finally:
-        context.close()
+@pytest.mark.browser_context_args(java_script_enabled=False)
+def test_plain_html_without_javascript(page, menu_server):
+    page.goto(menu_server)
+    card = page.locator(".food-card").filter(
+        has=page.get_by_role("link", name="Cheeseburger 1 ea.", exact=True)
+    )
+    card.get_by_role("button", name="Like", exact=True).click()
+    expect(card).to_have_attribute("data-preference", "liked")
+    card.get_by_role("link").click()
+    expect(page.get_by_role("heading", name="Cheeseburger", exact=True)).to_be_visible()
+    expect(page.locator(".nutrition")).to_contain_text("Sodium")

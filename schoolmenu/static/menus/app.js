@@ -110,15 +110,23 @@ export function init(doc) {
       if (focusId) doc.getElementById(focusId)?.focus();
     }
   });
+  function useImageFallback(img) {
+    const fallback = img.dataset.fallback;
+    delete img.dataset.fallback;
+    img.src = fallback;
+  }
   doc.addEventListener(
     "error",
     (event) => {
       const img = event.target;
       if (img.matches?.("img[data-fallback]")) {
-        img.src = img.dataset.fallback;
-        delete img.dataset.fallback;
+        useImageFallback(img);
       }
     },
     true,
   );
+  // Images can fail before this module installs its error listener.
+  for (const img of doc.querySelectorAll("img[data-fallback]")) {
+    if (img.complete && img.naturalWidth === 0) useImageFallback(img);
+  }
 }
