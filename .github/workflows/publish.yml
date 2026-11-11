@@ -4,18 +4,41 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without the v prefix (for example 1.2.3 or 1.2.3-rc.1; the matching tag must exist)"
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: dockerhub-lunchbox-${{ github.ref }}
+  group: dockerhub-lunchbox-${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref }}
   cancel-in-progress: false
 
 jobs:
+  validate-manual-version:
+    name: Validate manual version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check version format
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version must be semver without the v prefix (for example 1.2.3 or 1.2.3-rc.1)."
+            exit 1
+          fi
+
   validate:
     name: Validate release
+    needs: validate-manual-version
     uses: ./.github/workflows/ci.yml
+    with:
+      checkout_ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/v{0}', inputs.version) || github.ref }}
 
   publish:
     name: Build and push lunchbox
@@ -24,6 +47,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/v{0}', inputs.version) || github.ref }}
 
       - name: Check Docker Hub credentials
         env:
@@ -43,7 +68,9 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ secrets.DOCKER_USERNAME }}/lunchbox
-          tags: type=semver,pattern={{version}}
+          tags: |
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Login to Docker Hub
         uses: docker/login-action@v4
