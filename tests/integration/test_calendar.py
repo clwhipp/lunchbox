@@ -57,8 +57,10 @@ def test_menu_page_reveals_the_short_default_calendar_url_only_after_post(
     monkeypatch.setattr(services.timezone, "localdate", lambda: date(2026, 11, 11))
     page = client.get("/", {"school": "ABBIE_GROVE", "grade": "02"})
     assert page.status_code == 200
+    assert b"Subscribe to menu calendar" in page.content
     assert b"Show subscription URL" in page.content
     assert b"calendar-subscription-url" not in page.content
+    assert b'<dialog id="calendar-dialog"' in page.content
     assert b"Anyone with this link can view" in page.content
 
     revealed = client.post(
@@ -89,6 +91,25 @@ def test_menu_page_reveals_the_short_default_calendar_url_only_after_post(
     assert "Grade 01" in revealed.content.decode()
 
 
+def test_calendar_details_have_a_no_javascript_get_fallback(client, source, monkeypatch):
+    monkeypatch.setattr(services.timezone, "localdate", lambda: date(2026, 11, 11))
+    response = client.get(
+        "/",
+        {
+            "school": "NORTHEAST_ELEMENTARY",
+            "grade": "01",
+            "week": "2026-11-09",
+            "calendar_dialog": "open",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.context["calendar_dialog_open"] is True
+    assert b'<dialog id="calendar-dialog"' in response.content
+    assert b"calendar-subscription-url" not in response.content
+
+
+@override_settings(CALENDAR_PUBLIC_BASE_URL="https://menus.example.test/lunchbox")
 def test_calendar_feed_is_private_cached_and_reads_rolling_fourteen_days_without_provider_calls(
     client, monkeypatch
 ):
@@ -131,8 +152,10 @@ def test_calendar_feed_is_private_cached_and_reads_rolling_fourteen_days_without
     assert response["ETag"].startswith('"')
     assert response.content.count(b"BEGIN:VEVENT") == 10
     calendar_text = response.content.decode().replace("\r\n ", "")
-    assert "[LIKED] Cheese\\, Pizzable" in calendar_text
-    assert "Served together: [DISLIKED] Fruit Cup" in calendar_text
+    assert "SUMMARY:Wednesday\\, Nov 11 — Northeast Elementary — Grade 01" in calendar_text
+    assert "✅ Cheese\\, Pizzable" in calendar_text
+    assert "Served together: ❌ Fruit Cup" in calendar_text
+    assert "[LIKED]" not in calendar_text and "[DISLIKED]" not in calendar_text
     event_dates = [
         line.split(":", 1)[1]
         for line in calendar_text.splitlines()
@@ -140,8 +163,22 @@ def test_calendar_feed_is_private_cached_and_reads_rolling_fourteen_days_without
     ]
     assert event_dates[0] == "20261111" and event_dates[-1] == "20261124"
     assert starts == [date(2026, 11, 9), date(2026, 11, 16), date(2026, 11, 23)]
+    full_menu = (
+        "https://menus.example.test/lunchbox/?week=2026-11-09&school=NORTHEAST_ELEMENTARY&grade=01"
+    )
+    assert calendar_text.count("URL:") == 10
+    assert f"URL:{full_menu}" in calendar_text
+    assert (
+        "URL:https://menus.example.test/lunchbox/?week=2026-11-16&school=NORTHEAST_ELEMENTARY&grade=01"
+        in calendar_text
+    )
+    assert (
+        "URL:https://menus.example.test/lunchbox/?week=2026-11-23&school=NORTHEAST_ELEMENTARY&grade=01"
+        in calendar_text
+    )
+    assert f"📋 FULL MENU\\n{full_menu}" in calendar_text
     uids = [line for line in calendar_text.splitlines() if line.startswith("UID:")]
-    assert len(uids) == 10 and all(uid.endswith("@testserver") for uid in uids)
+    assert len(uids) == 10 and all(uid.endswith("@menus.example.test") for uid in uids)
     provider.assert_not_called()
 
     unchanged = client.get(url, HTTP_IF_NONE_MATCH=response["ETag"])

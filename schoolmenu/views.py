@@ -55,6 +55,7 @@ def index(request):
         calendar_subscription_url=(
             calendar_feed.calendar_subscription_url(request) if reveal_calendar_url else None
         ),
+        calendar_dialog_open=(reveal_calendar_url or request.GET.get("calendar_dialog") == "open"),
         calendar_school_label=identity.school.name.replace("_", " ").title(),
         calendar_grade=identity.grade,
     )
@@ -77,6 +78,8 @@ def calendar_ics(request, token):
     content = build_calendar(
         weeks,
         school_id=identity.school.value,
+        school_key=identity.school.name,
+        menu_base_url=public_url,
         school_label=school_label,
         grade=identity.grade,
         uid_domain=uid_domain,

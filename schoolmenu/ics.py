@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from urllib.parse import urlencode, urljoin
 
 from django.utils import timezone
+
+from .domain import monday
 
 
 def escape_ical_text(value: str) -> str:
@@ -42,6 +45,22 @@ def _content_line(name: str, value: str) -> str:
     return fold_ical_line(f"{name}:{escape_ical_text(value)}")
 
 
+def _uri_line(name: str, value: str) -> str:
+    """Fold a URI property without applying TEXT escaping to the URI."""
+    return fold_ical_line(f"{name}:{value}")
+
+
+def _full_menu_url(menu_base_url: str, school_key: str, grade: str, serving_date: date) -> str:
+    query = urlencode(
+        {
+            "week": monday(serving_date).isoformat(),
+            "school": school_key,
+            "grade": grade,
+        }
+    )
+    return urljoin(f"{menu_base_url.rstrip('/')}/", f"?{query}")
+
+
 def _utc_timestamp(value: datetime) -> str:
     if timezone.is_naive(value):
         value = value.replace(tzinfo=UTC)
@@ -49,34 +68,56 @@ def _utc_timestamp(value: datetime) -> str:
 
 
 def _preference_label(item: Any) -> str:
-    markers = {"liked": "[LIKED] ", "disliked": "[DISLIKED] "}
+    markers = {"liked": "✅ ", "disliked": "❌ "}
     return markers.get(item.preference, "") + item.name
 
 
-def _day_description(day: Any, stale: bool) -> str:
+def _description_section(item: Any) -> str:
+    if item.category == "ENTREES":
+        return "main"
+    if item.category in {"MILK", "DRINKS"}:
+        return "drinks"
+    return "sides"
+
+
+def _day_description(day: Any, stale: bool, menu_url: str) -> str:
     lines = []
     if stale:
         lines.append("WARNING: Menu data may be out of date.")
     if day.incomplete:
         lines.append("WARNING: Some menu information is incomplete.")
+    section_items: dict[str, list[str]] = {"main": [], "sides": [], "drinks": []}
     seen: set[int] = set()
     for group in day.groups:
-        top_level = [item for item in group.items if not item.is_related_item]
-        if not top_level:
-            continue
-        lines.append(group.label)
-        for item in top_level:
-            if item.pe_id in seen:
+        for item in group.items:
+            if item.is_related_item or item.pe_id in seen:
                 continue
             seen.add(item.pe_id)
-            lines.append(f"  - {_preference_label(item)}")
+            section = section_items[_description_section(item)]
+            section.append(f"• {_preference_label(item)}")
             for related in item.related_items:
                 if related.pe_id in seen:
                     continue
                 seen.add(related.pe_id)
-                lines.append(f"    Served together: {_preference_label(related)}")
+                section.append(f"  ↳ Served together: {_preference_label(related)}")
+    titles = {
+        "main": "MAIN ENTRÉES",
+        "sides": "🥦 SIDES",
+        "drinks": "🥛 MILK & DRINKS",
+    }
+    for name, title in titles.items():
+        if section_items[name]:
+            if lines:
+                lines.append("")
+            lines.append(title)
+            lines.extend(section_items[name])
     if not seen:
+        if lines:
+            lines.append("")
         lines.append("No menu published yet.")
+    if lines:
+        lines.append("")
+    lines.extend(["📋 FULL MENU", menu_url])
     return "\n".join(lines)
 
 
@@ -88,6 +129,8 @@ def build_calendar(
     weeks: list[dict[str, Any]],
     *,
     school_id: str,
+    school_key: str,
+    menu_base_url: str,
     school_label: str,
     grade: str,
     uid_domain: str = "calendar.lunchbox",
@@ -120,8 +163,11 @@ def build_calendar(
                 if not (window_start <= day.date < window_end and day.date.weekday() < 5):
                     continue
             next_day = day.date + timedelta(days=1)
-            summary = f"{day.date:%A} — {school_label} — Grade {grade}"
-            description = _day_description(day, stale)
+            summary = (
+                f"{day.date:%A}, {day.date:%b} {day.date.day} — {school_label} — Grade {grade}"
+            )
+            menu_url = _full_menu_url(menu_base_url, school_key, grade, day.date)
+            description = _day_description(day, stale, menu_url)
             event_lines = [
                 "BEGIN:VEVENT",
                 _content_line("UID", _event_uid(school_id, grade, day.date, uid_domain)),
@@ -129,6 +175,7 @@ def build_calendar(
                 f"DTSTART;VALUE=DATE:{day.date:%Y%m%d}",
                 f"DTEND;VALUE=DATE:{next_day:%Y%m%d}",
                 _content_line("SUMMARY", summary),
+                _uri_line("URL", menu_url),
                 _content_line("DESCRIPTION", description),
                 "END:VEVENT",
             ]

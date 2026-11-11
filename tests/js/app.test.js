@@ -3,14 +3,14 @@ import { JSDOM } from "jsdom";
 import { init } from "../../schoolmenu/static/menus/app.js";
 
 describe("menu progressive enhancement", () => {
-  let doc, win, form, like, dislike, dialog;
+  let doc, win, form, like, dislike, dialog, calendarDialog;
   function fire(name, detail) {
     doc.dispatchEvent(new win.CustomEvent(name, { detail }));
   }
   beforeEach(() => {
     vi.useFakeTimers();
     win = new JSDOM(
-      `<body><div id="save-status"></div><dialog id="food-dialog"><button data-close-dialog>Close</button><div id="dialog-content"></div></dialog><div id="week-panel"><label><input id="compact-disliked" type="checkbox" checked>Compact disliked items</label><a data-food-detail href="/food">Food</a><form class="preference-form" data-saved-state="neutral"><input type="hidden" name="state" value="neutral"><input type="checkbox" id="like" value="liked"><input type="checkbox" id="dislike" value="disliked"><button name="state" value="liked">Like</button><button name="state" value="neutral">Clear</button></form></div><input id="other" type="date"><img id="photo" src="broken" data-fallback="/plate.svg"></body>`,
+      `<body><div id="save-status"></div><dialog id="food-dialog"><button data-close-dialog>Close</button><div id="dialog-content"></div></dialog><dialog id="calendar-dialog"></dialog><div id="week-panel"><label><input id="compact-disliked" type="checkbox" checked>Compact disliked items</label><a data-food-detail href="/food">Food</a><form class="preference-form" data-saved-state="neutral"><input type="hidden" name="state" value="neutral"><input type="checkbox" id="like" value="liked"><input type="checkbox" id="dislike" value="disliked"><button name="state" value="liked">Like</button><button name="state" value="neutral">Clear</button></form></div><input id="other" type="date"><img id="photo" src="broken" data-fallback="/plate.svg"></body>`,
       { url: "http://localhost" },
     ).window;
     doc = win.document;
@@ -21,11 +21,62 @@ describe("menu progressive enhancement", () => {
     dialog = doc.getElementById("food-dialog");
     dialog.showModal = vi.fn();
     dialog.close = vi.fn(() => dialog.dispatchEvent(new win.Event("close")));
+    calendarDialog = doc.getElementById("calendar-dialog");
+    calendarDialog.showModal = vi.fn();
+    calendarDialog.close = vi.fn(() =>
+      calendarDialog.dispatchEvent(new win.Event("close")),
+    );
     init(doc);
   });
   afterEach(() => {
     vi.useRealTimers();
     win.close();
+  });
+  it("opens the calendar dialog and restores focus after closing", () => {
+    const trigger = doc.createElement("button");
+    trigger.dataset.calendarDialogOpen = "";
+    doc.body.append(trigger);
+
+    const click = new win.MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    trigger.dispatchEvent(click);
+
+    expect(click.defaultPrevented).toBe(true);
+    expect(calendarDialog.showModal).toHaveBeenCalledOnce();
+    calendarDialog.dispatchEvent(new win.Event("close"));
+    expect(doc.activeElement).toBe(trigger);
+
+    calendarDialog.setAttribute("open", "");
+    const alreadyOpen = new win.MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    trigger.dispatchEvent(alreadyOpen);
+    expect(alreadyOpen.defaultPrevented).toBe(true);
+    expect(calendarDialog.showModal).toHaveBeenCalledOnce();
+    calendarDialog.dispatchEvent(new win.Event("close"));
+    expect(doc.activeElement).toBe(trigger);
+  });
+  it("reopens a revealed calendar dialog as a modal", () => {
+    const revealed = new JSDOM(
+      '<body><div id="save-status"></div><dialog id="food-dialog"></dialog><dialog id="calendar-dialog" open></dialog></body>',
+      { url: "http://localhost" },
+    );
+    const revealedDialog =
+      revealed.window.document.getElementById("calendar-dialog");
+    revealedDialog.close = vi.fn(() => {
+      revealedDialog.removeAttribute("open");
+      revealedDialog.dispatchEvent(new revealed.window.Event("close"));
+    });
+    revealedDialog.showModal = vi.fn();
+
+    init(revealed.window.document);
+
+    expect(revealedDialog.close).toHaveBeenCalledOnce();
+    expect(revealedDialog.showModal).toHaveBeenCalledOnce();
+    revealed.window.close();
   });
   it("copies a revealed calendar URL with the clipboard API", async () => {
     const field = doc.createElement("textarea");

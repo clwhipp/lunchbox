@@ -2,6 +2,7 @@
 export function init(doc) {
   doc.body.classList.add("js-enabled");
   const dialog = doc.getElementById("food-dialog");
+  const calendarDialog = doc.getElementById("calendar-dialog");
   const status = doc.getElementById("save-status");
   const compactPreferenceKey = "lunchbox.compactDisliked";
   let compactDisliked = true;
@@ -31,6 +32,7 @@ export function init(doc) {
   doc.body.classList.toggle("compact-disliked", compactDisliked);
   syncCompactToggle();
   let opener;
+  let calendarOpener;
   let focusId;
   let statusTimer;
   function announce(text, duration = 0) {
@@ -96,6 +98,13 @@ export function init(doc) {
     }
   });
   doc.addEventListener("click", (event) => {
+    const calendarTrigger = event.target.closest("[data-calendar-dialog-open]");
+    if (calendarTrigger) {
+      event.preventDefault();
+      calendarOpener = calendarTrigger;
+      if (!calendarDialog?.open) calendarDialog?.showModal();
+      return;
+    }
     const target = event.target.closest(
       "[data-food-detail], [data-close-dialog]",
     );
@@ -106,6 +115,15 @@ export function init(doc) {
   dialog.addEventListener("close", () => {
     if (opener?.isConnected) opener.focus();
   });
+  calendarDialog?.addEventListener("close", () => {
+    if (calendarOpener?.isConnected) calendarOpener.focus();
+    calendarOpener = undefined;
+  });
+  // POST reveals reopen the modal; the open attribute preserves a no-JS fallback.
+  if (calendarDialog?.open) {
+    calendarDialog.close();
+    calendarDialog.showModal();
+  }
   doc.addEventListener("htmx:beforeRequest", (event) => {
     if (event.detail.elt.matches(".preference-form, .sack-lunch-form")) {
       for (const input of event.detail.elt.querySelectorAll(

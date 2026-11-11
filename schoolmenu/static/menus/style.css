@@ -975,29 +975,33 @@ noscript button {
     scroll-behavior: auto !important;
   }
 }
-.calendar-subscription {
+.calendar-launch-form {
+  display: flex;
+  justify-content: flex-start;
+  margin: 0 0 24px;
+}
+.calendar-dialog {
+  position: fixed;
+}
+.calendar-dialog-content {
   display: grid;
   gap: 10px;
-  margin: 0 0 24px;
-  padding: 22px;
-  border: 1px solid #d9e4d3;
-  border-radius: var(--radius);
-  background: #eaf0e6;
 }
-.calendar-subscription h2 {
-  font-size: 19px;
+.calendar-dialog-content h2 {
+  padding-right: 20px;
+  font-size: 22px;
   font-weight: 650;
   letter-spacing: -0.4px;
 }
-.calendar-subscription p {
-  margin-top: 7px;
+.calendar-dialog-content p {
+  margin-top: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.55;
 }
-.calendar-subscription label {
+.calendar-dialog-content label {
   color: var(--ink);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 .calendar-reveal-form {
@@ -1010,7 +1014,7 @@ noscript button {
   min-width: 0;
   gap: 8px;
 }
-.calendar-subscription textarea {
+.calendar-dialog textarea {
   width: 100%;
   min-height: 92px;
   padding: 11px 12px;
@@ -1037,7 +1041,8 @@ noscript button {
   color: var(--muted);
   font-size: 11px;
 }
-.calendar-subscription .calendar-privacy {
+.calendar-dialog-content .calendar-privacy {
+  margin-bottom: 0;
   color: #7b4541;
   font-size: 11px;
 }
