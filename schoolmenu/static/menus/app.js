@@ -3,16 +3,45 @@ export function init(doc) {
   doc.body.classList.add("js-enabled");
   const dialog = doc.getElementById("food-dialog");
   const status = doc.getElementById("save-status");
+  const compactPreferenceKey = "lunchbox.compactDisliked";
+  let compactDisliked = true;
+  try {
+    compactDisliked =
+      doc.defaultView.localStorage.getItem(compactPreferenceKey) !== "false";
+  } catch {
+    compactDisliked = true;
+  }
+  function syncCompactToggle() {
+    const toggle = doc.getElementById("compact-disliked");
+    if (toggle) toggle.checked = compactDisliked;
+  }
+  function setCompactDisliked(enabled) {
+    compactDisliked = enabled;
+    doc.body.classList.toggle("compact-disliked", enabled);
+    syncCompactToggle();
+    try {
+      doc.defaultView.localStorage.setItem(
+        compactPreferenceKey,
+        String(enabled),
+      );
+    } catch {
+      // Keep the in-page setting functional if browser storage is unavailable.
+    }
+  }
+  doc.body.classList.toggle("compact-disliked", compactDisliked);
+  syncCompactToggle();
   let opener;
   let focusId;
   let statusTimer;
-  function announce(text) {
+  function announce(text, duration = 0) {
     clearTimeout(statusTimer);
+    statusTimer = undefined;
     status.textContent = text;
-    if (text === "Saved.")
+    if (duration > 0)
       statusTimer = setTimeout(() => {
         status.textContent = "";
-      }, 2500);
+        statusTimer = undefined;
+      }, duration);
   }
   function restore(form) {
     for (const input of form.querySelectorAll('[type="checkbox"]')) {
@@ -21,6 +50,16 @@ export function init(doc) {
   }
   doc.addEventListener("change", (event) => {
     const input = event.target;
+    if (input.matches("#compact-disliked")) {
+      setCompactDisliked(input.checked);
+      return;
+    }
+    const sackForm = input.closest(".sack-lunch-form");
+    if (sackForm && input.type === "checkbox") {
+      focusId = input.id;
+      sackForm.requestSubmit();
+      return;
+    }
     const form = input.closest(".preference-form");
     if (!form || input.type !== "checkbox") return;
     const state = input.checked ? input.value : "neutral";
@@ -44,9 +83,9 @@ export function init(doc) {
     if (opener?.isConnected) opener.focus();
   });
   doc.addEventListener("htmx:beforeRequest", (event) => {
-    if (event.detail.elt.matches(".preference-form")) {
-      for (const input of doc.querySelectorAll(
-        '.preference-form [type="checkbox"]',
+    if (event.detail.elt.matches(".preference-form, .sack-lunch-form")) {
+      for (const input of event.detail.elt.querySelectorAll(
+        '[type="checkbox"]',
       ))
         input.disabled = true;
       announce("Saving…");
@@ -54,35 +93,44 @@ export function init(doc) {
   });
   doc.addEventListener("htmx:afterRequest", (event) => {
     const form = event.detail.elt;
-    if (form.matches(".preference-form")) {
-      for (const input of doc.querySelectorAll(
-        '.preference-form [type="checkbox"]',
-      ))
+    if (form.matches(".preference-form, .sack-lunch-form")) {
+      for (const input of form.querySelectorAll('[type="checkbox"]'))
         input.disabled = false;
-      if (event.detail.successful) announce("Saved.");
+      if (event.detail.successful) announce("Saved.", 2500);
       else {
         restore(form);
         announce(
-          "Could not save. Your previous preference is unchanged. Please retry.",
+          "Could not save. Your previous choice is unchanged. Please retry.",
+          5000,
         );
       }
     } else if (!event.detail.successful)
-      announce("Could not load food details. Please retry.");
+      announce("Could not load food details. Please retry.", 5000);
   });
   doc.addEventListener("htmx:afterSwap", (event) => {
     if (event.detail.target.id === "dialog-content") dialog.showModal();
-    if (event.detail.target.id === "week-panel" && focusId)
-      doc.getElementById(focusId)?.focus();
+    if (event.detail.target.id === "week-panel") {
+      syncCompactToggle();
+      if (focusId) doc.getElementById(focusId)?.focus();
+    }
   });
+  function useImageFallback(img) {
+    const fallback = img.dataset.fallback;
+    delete img.dataset.fallback;
+    img.src = fallback;
+  }
   doc.addEventListener(
     "error",
     (event) => {
       const img = event.target;
       if (img.matches?.("img[data-fallback]")) {
-        img.src = img.dataset.fallback;
-        delete img.dataset.fallback;
+        useImageFallback(img);
       }
     },
     true,
   );
+  // Images can fail before this module installs its error listener.
+  for (const img of doc.querySelectorAll("img[data-fallback]")) {
+    if (img.complete && img.naturalWidth === 0) useImageFallback(img);
+  }
 }

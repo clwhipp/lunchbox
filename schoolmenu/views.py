@@ -37,6 +37,45 @@ def index(request):
 
 @require_POST
 @never_cache
+def sack_lunch(request):
+    selection = selection_or_error(request, request.POST)
+    if isinstance(selection, HttpResponse):
+        return selection
+    try:
+        serving_date = date.fromisoformat(request.POST.get("serving_date", ""))
+    except (TypeError, ValueError):
+        return render(
+            request,
+            "menus/error.html",
+            {"error": "Choose a valid serving date."},
+            status=400,
+        )
+    confirmed_value = request.POST.get("confirmed", "")
+    if confirmed_value not in {"true", "false", "1", "0", "on", "off"}:
+        return render(
+            request,
+            "menus/error.html",
+            {"error": "Choose whether this is a sack lunch."},
+            status=400,
+        )
+    try:
+        services.save_sack_lunch(selection, serving_date, confirmed_value in {"true", "1", "on"})
+    except ValueError as exc:
+        return render(request, "menus/error.html", {"error": str(exc)}, status=400)
+    except DatabaseError:
+        return render(
+            request,
+            "menus/error.html",
+            {"error": "Could not save the sack lunch. Please retry."},
+            status=503,
+        )
+    if request.headers.get("HX-Request") == "true":
+        return render(request, "menus/week.html", services.load_week(selection, fetch=False))
+    return redirect(selection.url())
+
+
+@require_POST
+@never_cache
 def preference(request, food_id):
     selection = selection_or_error(request, request.POST)
     if isinstance(selection, HttpResponse):

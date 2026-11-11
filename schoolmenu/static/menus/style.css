@@ -134,11 +134,6 @@ h1 {
   letter-spacing: -1px;
   line-height: 1.15;
 }
-.page-intro > div > p:last-child {
-  color: var(--muted);
-  margin-top: 11px;
-  line-height: 1.6;
-}
 .school-settings {
   display: flex;
   align-items: end;
@@ -308,6 +303,27 @@ input[type="date"] {
   align-items: center;
   margin-bottom: 10px;
 }
+.menu-caption-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 14px;
+}
+.compact-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.compact-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--disliked);
+}
 .menu-caption > p {
   display: flex;
   gap: 20px;
@@ -318,6 +334,7 @@ input[type="date"] {
   letter-spacing: -0.4px;
 }
 .menu-caption > span,
+.menu-caption-controls > span,
 .legend {
   color: var(--muted);
   font-size: 11px;
@@ -358,6 +375,49 @@ input[type="date"] {
   border-top: 2px solid #adb99f;
   padding: 14px 0 16px;
   margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sack-lunch-form {
+  margin: 0;
+  min-width: 0;
+}
+.sack-lunch-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sack-lunch-toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--green);
+}
+.sack-lunch-save {
+  margin-top: 5px;
+}
+.sack-summary-grid {
+  grid-template-columns: minmax(220px, 0.55fr);
+}
+.sack-summary {
+  border-color: #d4dfd0;
+}
+.sack-summary .summary-icon {
+  background: #e8eddf;
+  color: var(--green);
 }
 .day-header > div {
   display: flex;
@@ -372,18 +432,6 @@ input[type="date"] {
 .day-header > div > span {
   font-size: 11px;
   color: var(--muted);
-}
-.day-status {
-  font-size: 10px;
-  margin-top: 8px;
-  color: var(--muted);
-  line-height: 1.5;
-}
-.day-status.school {
-  color: #2a7042;
-}
-.day-status.pack {
-  color: #9d433c;
 }
 .food-group {
   margin-bottom: 21px;
@@ -403,6 +451,31 @@ input[type="date"] {
   margin-bottom: 9px;
   overflow: hidden;
   transition: border-color 0.15s;
+}
+.menu-item-entry {
+  margin-bottom: 9px;
+}
+.menu-item-entry > .food-card {
+  margin-bottom: 0;
+}
+.related-items {
+  margin: 0 11px 2px 22px;
+  padding: 8px 9px 1px;
+  border: 1px solid #d6ddcf;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: #f0f3eb;
+}
+.related-items-label {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+.related-choice .food-card {
+  margin-bottom: 7px;
 }
 .food-card.liked {
   border-color: var(--liked);
@@ -469,6 +542,33 @@ input[type="date"] {
 }
 .preference-controls input[value="disliked"] {
   accent-color: var(--disliked);
+}
+body.js-enabled.compact-disliked .food-card.disliked {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+body.js-enabled.compact-disliked .food-card.disliked .food-open {
+  grid-column: 1;
+  align-items: center;
+  gap: 0;
+  padding: 7px 10px;
+}
+body.js-enabled.compact-disliked .food-card.disliked .food-photo,
+body.js-enabled.compact-disliked .food-card.disliked .food-open small,
+body.js-enabled.compact-disliked .food-card.disliked .like-choice {
+  display: none;
+}
+body.js-enabled.compact-disliked .food-card.disliked .preference-form {
+  grid-column: 2;
+  grid-row: 1;
+}
+body.js-enabled.compact-disliked .food-card.disliked .preference-controls {
+  justify-content: flex-end;
+  padding: 0 9px 0 0;
+}
+body.js-enabled.compact-disliked .food-card.disliked .dislike-choice {
+  min-height: 36px;
 }
 .js-only {
   display: none;
@@ -737,9 +837,6 @@ noscript button {
   .page-intro {
     margin: 28px 0;
   }
-  .page-intro > div > p:last-child {
-    font-size: 12px;
-  }
   .week-nav {
     align-items: start;
     flex-direction: column;
@@ -780,6 +877,10 @@ noscript button {
     justify-content: space-between;
     width: 100%;
   }
+  .menu-caption-controls {
+    justify-content: space-between;
+    width: 100%;
+  }
   .site-footer {
     flex-direction: column;
     gap: 8px;
@@ -796,6 +897,11 @@ noscript button {
   }
 }
 @media (max-width: 480px) {
+  .menu-caption-controls {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
   .week-grid {
     grid-template-columns: 1fr;
   }
@@ -849,9 +955,6 @@ noscript button {
   }
   .day-header h3 {
     font-size: 18px;
-  }
-  .day-status {
-    font-size: 12px;
   }
   .food-group h4 {
     font-size: 11px;

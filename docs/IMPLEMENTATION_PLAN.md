@@ -2,7 +2,7 @@
 
 ## Deliverable and decisions
 
-Build a Dockerized Python application for browsing Monday–Friday school lunches, recording one child's food preferences in SQLite, and identifying days likely to need lunch from home. This document is the build plan; the runtime application and deployment are future implementation work.
+This is the original build plan and records earlier requirements; it is not the current behavior specification. The application is implemented. In particular, the preference-inferred lunch classifications below were superseded by explicit per-day sack-lunch confirmation; see the current [README](../README.md) and [deployment guide](DEPLOYMENT.md).
 
 The plan is based on seven actual API responses described in [API findings](API_FINDINGS.md), rather than assumptions about the proof-of-concept client's return values.
 
@@ -106,11 +106,11 @@ Prefer a single fragment response containing the updated weekly summary and boar
 
 ## 5. Weekly lunch summary
 
-Only real **entrées** determine lunch suitability. Vegetables, drinks, fruit, grains, and condiments retain preferences and outlines without influencing the decision.
+Only real **entrées** determine lunch suitability. Vegetables, drinks, fruit, and grains retain preferences and outlines without influencing the decision. Condiments are omitted from the family menu.
 
 | Day condition | Status | Counts as lunch from home? |
 | --- | --- | --- |
-| A complete entrée list has at least one liked item | School lunch likely | No |
+| A complete entrée list has at least one liked item | School lunch potentially | No |
 | A nonempty, complete entrée list has every item disliked | Lunch from home likely | Yes |
 | No liked entrée and at least one neutral/unreviewed entrée | Needs review | No |
 | No published menu, missing day, or no real entrées | Menu unavailable | No |
@@ -155,10 +155,10 @@ The food row identifies its school. Validate the date, active profile, supported
 | --- | --- |
 | `ChildProfile` | Primary key, optional display label, created timestamp; seed one default profile |
 | `Food` | Primary key, source, school UUID, source `MenuItemId`, alternate `PEMenuItemId`, display name, first/last seen timestamps; unique `(source, school_id, source_item_id)` |
-| `FoodPreference` | Profile FK, food FK, value `liked` or `disliked`, updated timestamp; unique `(profile_id, food_id)` plus a database check constraint on value |
+| `FoodPreference` | Profile FK, upstream `PEMenuItemId`, value `liked` or `disliked`, updated timestamp; unique `(profile_id, pe_id)` plus a database check constraint on value |
 | `MenuCache` | Unique request-context key, response kind (daily/weekly), JSON payload, normalized schema version, fetched/expiry timestamps |
 
-Preferences reference canonical `Food` rows, never dates, names, or `MenuId`. Keep occurrence-specific serving sizes, category, source menu IDs, and nutritional data in the normalized cached menu so another grade/day cannot overwrite those values on a global food row. Do not delete foods with preferences when pruning expired cache entries.
+Preferences are keyed by `(profile, PEMenuItemId)` so likes and dislikes apply to the same upstream food across school-specific `Food` rows. The optional `Food` link records the school-specific item most recently used to change the preference; it is not the preference identity. Keep occurrence-specific serving sizes, category, source menu IDs, and nutritional data in the normalized cached menu so another grade/day cannot overwrite those values on a global food row. Do not delete foods with preferences when pruning expired cache entries.
 
 Use Django migrations from the first commit. Test the constraints and real SQLite persistence, including switching and clearing state. Use WAL mode, a bounded busy timeout (initially 5 seconds), and short explicit write transactions. Complete upstream requests outside write transactions. Use one app replica against a local volume and verify threaded access with a file-backed SQLite test; Django documents [SQLite concurrency considerations](https://docs.djangoproject.com/en/5.2/ref/databases/#sqlite-notes).
 
@@ -194,7 +194,7 @@ Add tests with every implementation milestone. Normal CI uses the captured API f
 | Normalizer/contracts | All captured shapes, rolling Wednesday window, date sorting, sentinel filtering, category-only placeholders, wholly empty/missing days, unknown categories, invalid food IDs, null versus zero nutrients, alternate image cases, daily/weekly merge retaining sodium and saturated fat |
 | Calendar | Every weekday including weekends, Monday stability, seven-day navigation, year/month/leap-day boundaries, school timezone versus UTC date, DST transitions, invalid/canonical URL inputs |
 | Lunch rules | Empty list, all neutral, mixed neutral/disliked, all disliked, one liked plus anything else, missing/incomplete menus, non-entrée likes ignored, same food across multiple days, ordered day names and counts |
-| Database/services | Uniqueness and check constraints, idempotent repeated saves, liked↔disliked↔neutral transitions, profile isolation, school-scoped IDs, preferences surviving menu refresh and cache pruning, rollback/error handling, fresh process reopening a file database |
+| Database/services | Uniqueness and check constraints, idempotent repeated saves, liked↔disliked↔neutral transitions, profile isolation, cross-school identity by `PEMenuItemId`, preferences surviving menu refresh and cache pruning, rollback/error handling, fresh process reopening a file database |
 | Cache/provider orchestration | Context isolation, expiry/empty TTLs, stale cutoff, failed refresh retaining valid data, optional detail failures, single-flight refresh, shared pacing, bounded retry, no network call on preference write |
 | Django views/forms | Full and fragment rendering, canonical redirects, validation, unknown food 404, CSRF rejection using an enforcing client, escaped upstream text, transactional save failure, health endpoints independent of SchoolCafe |
 | Custom JavaScript | Exclusive checkbox states, clearing, disabled/pending/failure behavior, keyboard focus restoration, dialog lifecycle, image fallback and repeated event binding after swaps |

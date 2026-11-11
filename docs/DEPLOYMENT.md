@@ -12,7 +12,7 @@ Compose reads `.env`, which is excluded from source control and Docker's build c
 | `SCHOOL_TIME_ZONE` | `America/Chicago` | Current local calendar week |
 | `SCHOOL` | `NORTHEAST_ELEMENTARY` | Initial enum name from the provider client |
 | `GRADE` | `01` | Initial upstream grade, kept as a string |
-| `SUPPORTED_GRADES` | `01` | Verified grade codes offered in the selector |
+| `SUPPORTED_GRADES` | `01,02,03,04,05` | Grade codes offered in the selector; 01–05 verified against Northeast Elementary |
 | `BIND_ADDRESS` | `127.0.0.1` | Host network interface |
 | `APP_PORT` | `8000` | Published host port |
 | `LUNCHBOX_IMAGE` | `lunchbox:local` | Local image or published `username/lunchbox:version` to run |
@@ -21,7 +21,7 @@ Compose reads `.env`, which is excluded from source control and Docker's build c
 
 Published menus cache for 15 minutes; empty menus for 5 minutes; saved-data fallback lasts at most 24 hours. Provider calls are paced across the single process, use a 5-second timeout, and retry transient connection/server errors once. HTTP 429 is not retried. Policy constants live in `schoolmenu/config/settings.py`.
 
-This version uses one Gunicorn process, four threads, and local SQLite storage. Food identity is scoped to school and source item ID. Preferences persist across dates/grades within that school and are shared by the default child profile.
+This version uses one Gunicorn process, four threads, and local SQLite storage. Food identity is scoped to school and source item ID. Likes/dislikes persist across dates/grades within that school; sack-lunch confirmations are explicit weekday selections scoped to the child profile, school, and serving date, and therefore remain selected when the menu grade changes.
 
 ## Installation and household access
 
@@ -36,7 +36,7 @@ docker compose logs --tail=50 web
 
 Readiness checks SQLite access and migrations without contacting SchoolCafe. A live menu requires SchoolCafe when no fresh/saved response exists.
 
-For another household device, set `BIND_ADDRESS=0.0.0.0`, add the computer's LAN IP/hostname to `DJANGO_ALLOWED_HOSTS`, and run `docker compose up -d --force-recreate --wait`. Visit `http://<computer-lan-ip>:8000` on that network; configure the host firewall as needed. For an HTTPS proxy, configure the trusted hostname/origin and terminate TLS/access control at the proxy. The initial deployment is local.
+For another household device on the LAN or tailnet, set `BIND_ADDRESS=0.0.0.0`, add the LAN IP/hostname or Tailscale IP/MagicDNS hostname to `DJANGO_ALLOWED_HOSTS`, and run `docker compose up -d --force-recreate --wait`. Visit `http://<address>:8000`. Binding to `0.0.0.0` publishes on all host IPv4 interfaces, not just Tailscale; configure the host firewall for the intended access. For an HTTPS proxy, configure the trusted hostname/origin and terminate TLS/access control at the proxy. The initial deployment is local.
 
 ## Docker Hub releases
 

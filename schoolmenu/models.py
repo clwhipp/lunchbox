@@ -21,15 +21,32 @@ class Food(models.Model):
 
 class FoodPreference(models.Model):
     profile = models.ForeignKey(ChildProfile, on_delete=models.CASCADE)
-    food = models.ForeignKey(Food, on_delete=models.CASCADE)
+    food = models.ForeignKey(Food, on_delete=models.SET_NULL, null=True, blank=True)
+    pe_id = models.PositiveIntegerField()
     value = models.CharField(max_length=8, choices=[("liked", "Liked"), ("disliked", "Disliked")])
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["profile", "food"], name="unique_preference"),
+            models.UniqueConstraint(fields=["profile", "pe_id"], name="unique_preference"),
             models.CheckConstraint(
                 condition=models.Q(value__in=["liked", "disliked"]), name="valid_preference"
+            ),
+        ]
+
+
+class SackLunch(models.Model):
+    profile = models.ForeignKey(ChildProfile, on_delete=models.CASCADE)
+    school_id = models.UUIDField()
+    week_start = models.DateField()
+    serving_date = models.DateField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile", "school_id", "serving_date"],
+                name="unique_sack_lunch",
             ),
         ]
 

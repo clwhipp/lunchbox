@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from urllib.parse import urlparse
 
 from .provider import ProviderError
@@ -17,8 +17,8 @@ CATEGORIES = {
     "DRINKS": ("Drinks", "main"),
     "FRUITS": ("Fruit", "extra"),
     "GRAINS": ("Grains", "extra"),
-    "CONDIMENTS": ("Condiments", "extra"),
 }
+HIDDEN_CATEGORIES = {"CONDIMENTS"}
 NUTRIENTS = (
     ("Calories", "Calories", "kcal"),
     ("TotalFat", "Total fat", "g"),
@@ -26,12 +26,6 @@ NUTRIENTS = (
     ("Carbs", "Carbohydrates", "g"),
     ("Sodium", "Sodium", "mg"),
 )
-STATUSES = {
-    "pack": "Lunch from home likely",
-    "school": "School lunch likely",
-    "review": "Needs review",
-    "unavailable": "No entrée menu published",
-}
 
 
 def monday(value: date) -> date:
@@ -52,8 +46,8 @@ def positive_id(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
-def thumbnail(url: object, has_image: object) -> str:
-    if not has_image or not isinstance(url, str):
+def thumbnail(url: object) -> str:
+    if not isinstance(url, str):
         return ""
     parsed = urlparse(url)
     if parsed.scheme == "https" and parsed.netloc == "onlineservice.primeroedge.com":
@@ -87,6 +81,8 @@ class Item:
     nutrition: list[dict]
     food_id: int = 0
     preference: str = "neutral"
+    related_items: list[Item] = field(default_factory=list)
+    is_related_item: bool = False
 
 
 @dataclass
@@ -101,7 +97,7 @@ class Day:
     date: date
     groups: list[Group] = field(default_factory=list)
     incomplete: bool = False
-    status: str = "unavailable"
+    sack_lunch: bool = False
 
     @property
     def items(self) -> list[Item]:
@@ -118,10 +114,6 @@ class Day:
     @property
     def extra_groups(self) -> list[Group]:
         return [g for g in self.groups if g.section == "extra"]
-
-    @property
-    def status_label(self) -> str:
-        return STATUSES[self.status]
 
 
 def normalize_item(raw: object, category: str) -> Item | None:
@@ -140,7 +132,7 @@ def normalize_item(raw: object, category: str) -> Item | None:
         name=name.strip(),
         category=category,
         serving_size=str(raw.get("ServingSizeByGrade") or ""),
-        image=thumbnail(raw.get("ThumbnailImageURL"), raw.get("HasImage")),
+        image=thumbnail(raw.get("ThumbnailImageURL")),
         allergens=str(raw.get("AllergenDisplay") or "Allergen information not supplied."),
         nutrition=nutrients(raw),
     )
@@ -157,6 +149,8 @@ def normalize_week(payload: object, start: date) -> list[Day]:
         if not isinstance(categories, dict):
             raise ProviderError("Invalid day response")
         for category, rows in categories.items():
+            if category in HIDDEN_CATEGORIES:
+                continue
             label, section = CATEGORIES.get(category, (f"Other · {category}", "extra"))
             group = Group(label, section)
             if not isinstance(rows, list):
@@ -174,23 +168,53 @@ def normalize_week(payload: object, start: date) -> list[Day]:
                 day.groups.append(group)
         # Provider dictionary/list order is stable; DisplayOrder often ties.
         days.append(day)
+    raw_relationships = payload.get("_served_together", {})
+    relationships: dict[date, list[tuple[int, int]]] = {}
+    if isinstance(raw_relationships, dict):
+        for day_key, pairs in raw_relationships.items():
+            try:
+                serving_day = (
+                    date.fromisoformat(day_key)
+                    if "-" in day_key
+                    else datetime.strptime(day_key, "%m/%d/%Y").date()
+                )
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(pairs, list):
+                continue
+            valid_pairs = []
+            for pair in pairs:
+                if (
+                    isinstance(pair, list)
+                    and len(pair) == 2
+                    and positive_id(pair[0])
+                    and positive_id(pair[1])
+                ):
+                    valid_pairs.append((pair[0], pair[1]))
+            relationships[serving_day] = valid_pairs
+    link_served_together(days, relationships)
     return days
 
 
-def summarize(days: list[Day]) -> dict[str, list[Day]]:
-    summary: dict[str, list[Day]] = {status: [] for status in STATUSES}
+def link_served_together(days: list[Day], relationships: dict[date, list[tuple[int, int]]]) -> None:
+    """Nest provider-reported choice items under their parent entrée."""
     for day in days:
-        entrees = day.entrees
-        if day.incomplete:
-            status = "review"
-        elif not entrees:
-            status = "unavailable"
-        elif any(item.preference == "liked" for item in entrees):
-            status = "school"
-        elif all(item.preference == "disliked" for item in entrees):
-            status = "pack"
-        else:
-            status = "review"
-        day.status = status
-        summary[status].append(day)
-    return summary
+        items_by_id = {item.pe_id: item for item in day.items}
+        for parent_id, child_id in relationships.get(day.date, []):
+            parent = items_by_id.get(parent_id)
+            child = items_by_id.get(child_id)
+            if parent is None or child is None or parent.category != "ENTREES" or parent is child:
+                continue
+            if child not in parent.related_items:
+                parent.related_items.append(child)
+            child.is_related_item = True
+
+
+def sack_lunch_days(days: list[Day], confirmed_dates: set[date]) -> list[Day]:
+    """Mark and return only the days explicitly confirmed for a sack lunch."""
+    confirmed = []
+    for day in days:
+        day.sack_lunch = day.date in confirmed_dates
+        if day.sack_lunch:
+            confirmed.append(day)
+    return confirmed
