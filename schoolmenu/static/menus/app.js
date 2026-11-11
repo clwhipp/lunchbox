@@ -50,8 +50,33 @@ export function init(doc) {
       input.checked = input.value === form.dataset.savedState;
     }
   }
+  function syncCalendarSelection() {
+    const school = doc.querySelector('.school-settings select[name="school"]');
+    const grade = doc.querySelector('.school-settings select[name="grade"]');
+    if (!school || !grade) return;
+    const revealForm = calendarDialog?.querySelector(".calendar-reveal-form");
+    if (revealForm) {
+      revealForm.querySelector('input[name="school"]').value = school.value;
+      revealForm.querySelector('input[name="grade"]').value = grade.value;
+    }
+    const schoolLabel = doc.getElementById("calendar-school-label");
+    const gradeLabel = doc.getElementById("calendar-grade-label");
+    if (schoolLabel)
+      schoolLabel.textContent =
+        school.selectedOptions[0]?.textContent.trim() ?? school.value;
+    if (gradeLabel) gradeLabel.textContent = grade.value;
+  }
+  syncCalendarSelection();
   doc.addEventListener("change", (event) => {
     const input = event.target;
+    if (
+      input.matches(
+        '.school-settings select[name="school"], .school-settings select[name="grade"]',
+      )
+    ) {
+      syncCalendarSelection();
+      return;
+    }
     if (input.matches("#compact-disliked")) {
       setCompactDisliked(input.checked);
       return;
@@ -101,6 +126,7 @@ export function init(doc) {
     const calendarTrigger = event.target.closest("[data-calendar-dialog-open]");
     if (calendarTrigger) {
       event.preventDefault();
+      syncCalendarSelection();
       calendarOpener = calendarTrigger;
       if (!calendarDialog?.open) calendarDialog?.showModal();
       return;

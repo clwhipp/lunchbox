@@ -51,8 +51,7 @@ def test_week_navigation_and_modal(page, menu_server):
 
 def test_calendar_subscription_modal_keeps_the_initial_page_compact(page, menu_server):
     page.goto(menu_server)
-    launcher = page.locator(".calendar-launch-form")
-    expect(launcher.get_by_role("button")).to_have_count(1)
+    launcher = page.locator(".school-settings")
     expect(launcher.get_by_role("button", name="Subscribe to menu calendar")).to_be_visible()
     expect(page.get_by_role("dialog", name="Subscribe to this menu calendar")).not_to_be_visible()
     expect(page.get_by_text("AUTOMATIC UPDATES", exact=True)).not_to_be_visible()
@@ -66,15 +65,34 @@ def test_calendar_subscription_modal_keeps_the_initial_page_compact(page, menu_s
     expect(modal.get_by_role("button", name="Show subscription URL")).to_be_visible()
 
 
+def test_calendar_modal_uses_school_and_grade_selected_before_apply(page, menu_server):
+    page.goto(menu_server)
+    page.get_by_label("School").select_option("ABBIE_GROVE")
+    page.get_by_label("Grade").select_option("02")
+
+    page.get_by_role("button", name="Subscribe to menu calendar").click()
+    modal = page.get_by_role("dialog", name="Subscribe to this menu calendar")
+    expect(modal).to_be_visible()
+    expect(modal).to_contain_text("Calendar for Abbie Grove, Grade 02.")
+
+    modal.get_by_role("button", name="Show subscription URL").click()
+    expect(page.get_by_label("Subscription URL")).to_be_visible()
+    expect(modal).to_contain_text("Calendar for Abbie Grove, Grade 02.")
+
+
 def test_calendar_details_open_without_javascript(browser, menu_server):
     context = browser.new_context(java_script_enabled=False)
     try:
         page = context.new_page()
         page.goto(menu_server)
+        page.get_by_label("School").select_option("ABBIE_GROVE")
+        page.get_by_label("Grade").select_option("02")
         page.get_by_role("button", name="Subscribe to menu calendar").click()
 
-        expect(page).to_have_url(re.compile("calendar_dialog=open"))
-        expect(page.get_by_role("dialog", name="Subscribe to this menu calendar")).to_be_visible()
+        expect(page).to_have_url(re.compile("school=ABBIE_GROVE.*grade=02"))
+        modal = page.get_by_role("dialog", name="Subscribe to this menu calendar")
+        expect(modal).to_be_visible()
+        expect(modal).to_contain_text("Calendar for Abbie Grove, Grade 02.")
         expect(page.get_by_role("button", name="Show subscription URL")).to_be_visible()
         assert page.locator("#calendar-subscription-url").count() == 0
     finally:

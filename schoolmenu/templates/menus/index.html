@@ -1,21 +1,14 @@
 {% extends 'menus/base.html' %}
 {% block content %}
 <section class="page-intro">
-  <form class="school-settings" method="get"><input type="hidden" name="week" value="{{ selection.start|date:'Y-m-d' }}"><label>School<select name="school">{% for value,label in schools %}<option value="{{ value }}" {% if value == selection.school.name %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label><label>Grade<select name="grade">{% for grade in grades %}<option value="{{ grade }}" {% if grade == selection.grade %}selected{% endif %}>{{ grade }}</option>{% endfor %}</select></label><button type="submit" class="button secondary">Apply</button></form>
+  <form class="school-settings" method="get"><input type="hidden" name="week" value="{{ selection.start|date:'Y-m-d' }}"><label>School<select name="school">{% for value,label in schools %}<option value="{{ value }}" {% if value == selection.school.name %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label><label>Grade<select name="grade">{% for grade in grades %}<option value="{{ grade }}" {% if grade == selection.grade %}selected{% endif %}>{{ grade }}</option>{% endfor %}</select></label><button type="submit" class="button secondary">Apply</button><button type="submit" name="calendar_dialog" value="open" class="button" data-calendar-dialog-open aria-haspopup="dialog" aria-controls="calendar-dialog">Subscribe to menu calendar</button></form>
 </section>
-<form class="calendar-launch-form" method="get">
-  <input type="hidden" name="school" value="{{ selection.school.name }}">
-  <input type="hidden" name="grade" value="{{ selection.grade }}">
-  <input type="hidden" name="week" value="{{ selection.start|date:'Y-m-d' }}">
-  <input type="hidden" name="calendar_dialog" value="open">
-  <button class="button" type="submit" data-calendar-dialog-open aria-haspopup="dialog" aria-controls="calendar-dialog">Subscribe to menu calendar</button>
-</form>
 <dialog id="calendar-dialog" class="calendar-dialog" aria-labelledby="calendar-dialog-title" {% if calendar_dialog_open %}open{% endif %}>
   <form method="dialog"><button class="dialog-close" type="submit" aria-label="Close calendar details">×</button></form>
   <div class="calendar-dialog-content">
     <p class="eyebrow">AUTOMATIC UPDATES</p>
     <h2 id="calendar-dialog-title">Subscribe to this menu calendar</h2>
-    <p>Calendar for {{ calendar_school_label }}, Grade {{ calendar_grade }}. It covers the next 14 calendar days on school weekdays, updates automatically, and marks liked or disliked foods in each day’s details.</p>
+    <p>Calendar for <span id="calendar-school-label">{{ calendar_school_label }}</span>, Grade <span id="calendar-grade-label">{{ calendar_grade }}</span>. It covers the next 14 calendar days on school weekdays, updates automatically, and marks liked or disliked foods in each day’s details.</p>
     <p>On iPhone, reveal and copy the subscription URL, then add it in Calendar using Add Subscribed Calendar.</p>
     {% if calendar_subscription_url %}
       <div class="calendar-url-panel">

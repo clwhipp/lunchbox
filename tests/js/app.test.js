@@ -32,6 +32,36 @@ describe("menu progressive enhancement", () => {
     vi.useRealTimers();
     win.close();
   });
+  it("syncs the currently selected school and grade into the calendar details", () => {
+    const settings = doc.createElement("form");
+    settings.className = "school-settings";
+    settings.innerHTML =
+      '<select name="school"><option value="NORTHEAST_ELEMENTARY">Northeast Elementary</option><option value="ABBIE_GROVE">Abbie Grove</option></select><select name="grade"><option value="01">01</option><option value="02">02</option></select>';
+    const reveal = doc.createElement("form");
+    reveal.className = "calendar-reveal-form";
+    reveal.innerHTML =
+      '<input type="hidden" name="school"><input type="hidden" name="grade">';
+    const schoolLabel = doc.createElement("span");
+    schoolLabel.id = "calendar-school-label";
+    const gradeLabel = doc.createElement("span");
+    gradeLabel.id = "calendar-grade-label";
+    calendarDialog.append(reveal, schoolLabel, gradeLabel);
+    doc.body.append(settings);
+
+    const school = settings.querySelector('select[name="school"]');
+    const grade = settings.querySelector('select[name="grade"]');
+    school.value = "ABBIE_GROVE";
+    school.dispatchEvent(new win.Event("change", { bubbles: true }));
+    grade.value = "02";
+    grade.dispatchEvent(new win.Event("change", { bubbles: true }));
+
+    expect(reveal.querySelector('input[name="school"]').value).toBe(
+      "ABBIE_GROVE",
+    );
+    expect(reveal.querySelector('input[name="grade"]').value).toBe("02");
+    expect(schoolLabel.textContent).toBe("Abbie Grove");
+    expect(gradeLabel.textContent).toBe("02");
+  });
   it("opens the calendar dialog and restores focus after closing", () => {
     const trigger = doc.createElement("button");
     trigger.dataset.calendarDialogOpen = "";

@@ -50,10 +50,12 @@ def index(request):
     ):
         return redirect(selection.url())
     context = services.load_week(selection)
-    identity = calendar_feed.default_calendar_identity()
+    identity = selection
     context.update(
         calendar_subscription_url=(
-            calendar_feed.calendar_subscription_url(request) if reveal_calendar_url else None
+            calendar_feed.calendar_subscription_url(request, selection)
+            if reveal_calendar_url
+            else None
         ),
         calendar_dialog_open=(reveal_calendar_url or request.GET.get("calendar_dialog") == "open"),
         calendar_school_label=identity.school.name.replace("_", " ").title(),
@@ -70,8 +72,8 @@ def calendar_ics(request, token):
         raise Http404("Calendar subscription not found") from exc
 
     window_start = timezone.localdate()
-    selections = calendar_feed.default_calendar_selections(window_start)
-    weeks = [services.load_week(selection, fetch=False) for selection in selections]
+    selections = calendar_feed.calendar_selections(identity, window_start)
+    weeks = [services.load_week(selection) for selection in selections]
     school_label = identity.school.name.replace("_", " ").title()
     public_url = settings.CALENDAR_PUBLIC_BASE_URL or request.build_absolute_uri("/")
     uid_domain = urlsplit(public_url).hostname or "calendar.lunchbox"

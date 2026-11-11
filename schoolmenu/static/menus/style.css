@@ -975,11 +975,6 @@ noscript button {
     scroll-behavior: auto !important;
   }
 }
-.calendar-launch-form {
-  display: flex;
-  justify-content: flex-start;
-  margin: 0 0 24px;
-}
 .calendar-dialog {
   position: fixed;
 }
