@@ -105,7 +105,7 @@ for kind,payload in json.load(sys.stdin).items():
             for kind in ("weekly", "daily")
         }
         compose("run", "--rm", "-T", "web", "python", "-c", seed, input=json.dumps(payload))
-        compose("up", "-d", "--wait", "--wait-timeout", "45")
+        compose("up", "-d", "--wait", "--wait-timeout", "45", "web")
         assert compose("exec", "-T", "web", "id", "-u").stdout.strip() == "10001"
         base = f"http://127.0.0.1:{port}"
         opener = build_opener(HTTPCookieProcessor(CookieJar()))
@@ -141,9 +141,9 @@ for kind,payload in json.load(sys.stdin).items():
             "green/red states, and nutrient details"
         )
         compose("restart", "web")
-        compose("up", "-d", "--wait", "--wait-timeout", "45")
+        compose("up", "-d", "--wait", "--wait-timeout", "45", "web")
         verify()
-        compose("up", "-d", "--force-recreate", "--wait", "--wait-timeout", "45")
+        compose("up", "-d", "--force-recreate", "--wait", "--wait-timeout", "45", "web")
         verify()
         progress("PASS: saved preferences survive restart and container recreation")
         compose(
