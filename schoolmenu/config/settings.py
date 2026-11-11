@@ -54,16 +54,41 @@ except ValueError as exc:
     raise ImproperlyConfigured("CALENDAR_REFRESH_INTERVAL_SECONDS must be an integer") from exc
 if not 60 <= CALENDAR_REFRESH_INTERVAL_SECONDS <= 604800:
     raise ImproperlyConfigured("CALENDAR_REFRESH_INTERVAL_SECONDS must be between 60 and 604800")
+DATABASE_PATH = os.environ.get("DATABASE_PATH", str(BASE_DIR / "schoolcafe.sqlite3"))
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": os.environ.get("DATABASE_PATH", str(BASE_DIR / "schoolcafe.sqlite3")),
+        "NAME": DATABASE_PATH,
         "OPTIONS": {
             "timeout": 5,
             "init_command": "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;",
         },
     }
 }
+
+thumbnail_cache_dir = os.environ.get("THUMBNAIL_CACHE_DIR")
+THUMBNAIL_CACHE_DIR = (
+    Path(thumbnail_cache_dir)
+    if thumbnail_cache_dir
+    else Path(DATABASE_PATH).resolve().parent / "thumbnail-cache"
+)
+if not THUMBNAIL_CACHE_DIR.is_absolute():
+    raise ImproperlyConfigured("THUMBNAIL_CACHE_DIR must be an absolute path")
+
+
+def _positive_cache_setting(name: str, default: int) -> int:
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except ValueError as exc:
+        raise ImproperlyConfigured(f"{name} must be a positive integer") from exc
+    if value <= 0:
+        raise ImproperlyConfigured(f"{name} must be a positive integer")
+    return value
+
+
+THUMBNAIL_CACHE_TTL_SECONDS = _positive_cache_setting("THUMBNAIL_CACHE_TTL_SECONDS", 2592000)
+THUMBNAIL_CACHE_MAX_BYTES = _positive_cache_setting("THUMBNAIL_CACHE_MAX_BYTES", 134217728)
+
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.staticfiles",

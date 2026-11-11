@@ -27,6 +27,52 @@ def test_grade_must_be_supported(monkeypatch):
         runpy.run_path(str(SETTINGS))
 
 
+def test_thumbnail_cache_defaults_and_can_be_overridden(monkeypatch, tmp_path):
+    monkeypatch.setenv("DJANGO_SECRET_KEY", "test-only-settings-key")
+    database = tmp_path / "schoolcafe.sqlite3"
+    monkeypatch.setenv("DATABASE_PATH", str(database))
+    monkeypatch.delenv("THUMBNAIL_CACHE_DIR", raising=False)
+    monkeypatch.delenv("THUMBNAIL_CACHE_TTL_SECONDS", raising=False)
+    monkeypatch.delenv("THUMBNAIL_CACHE_MAX_BYTES", raising=False)
+
+    defaults = runpy.run_path(str(SETTINGS))
+    assert defaults["THUMBNAIL_CACHE_DIR"] == tmp_path / "thumbnail-cache"
+    assert defaults["THUMBNAIL_CACHE_TTL_SECONDS"] == 2592000
+    assert defaults["THUMBNAIL_CACHE_MAX_BYTES"] == 134217728
+
+    cache_dir = tmp_path / "image-store"
+    monkeypatch.setenv("THUMBNAIL_CACHE_DIR", str(cache_dir))
+    monkeypatch.setenv("THUMBNAIL_CACHE_TTL_SECONDS", "60")
+    monkeypatch.setenv("THUMBNAIL_CACHE_MAX_BYTES", "4096")
+    configured = runpy.run_path(str(SETTINGS))
+    assert configured["THUMBNAIL_CACHE_DIR"] == cache_dir
+    assert configured["THUMBNAIL_CACHE_TTL_SECONDS"] == 60
+    assert configured["THUMBNAIL_CACHE_MAX_BYTES"] == 4096
+
+
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("THUMBNAIL_CACHE_TTL_SECONDS", "0"),
+        ("THUMBNAIL_CACHE_TTL_SECONDS", "not-a-number"),
+        ("THUMBNAIL_CACHE_MAX_BYTES", "0"),
+        ("THUMBNAIL_CACHE_MAX_BYTES", "invalid"),
+    ],
+)
+def test_thumbnail_cache_settings_must_be_positive_integers(monkeypatch, name, value):
+    monkeypatch.setenv("DJANGO_SECRET_KEY", "test-only-settings-key")
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ImproperlyConfigured, match=name):
+        runpy.run_path(str(SETTINGS))
+
+
+def test_thumbnail_cache_directory_must_be_absolute(monkeypatch):
+    monkeypatch.setenv("DJANGO_SECRET_KEY", "test-only-settings-key")
+    monkeypatch.setenv("THUMBNAIL_CACHE_DIR", "relative/cache")
+    with pytest.raises(ImproperlyConfigured, match="THUMBNAIL_CACHE_DIR"):
+        runpy.run_path(str(SETTINGS))
+
+
 def test_calendar_public_url_and_refresh_interval_defaults_are_validated(monkeypatch):
     monkeypatch.setenv("DJANGO_SECRET_KEY", "test-only-settings-key")
     monkeypatch.setenv("CALENDAR_PUBLIC_BASE_URL", "https://menus.example.test/lunchbox/")

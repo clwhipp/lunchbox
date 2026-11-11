@@ -13,6 +13,7 @@ htmlcov/
 node_modules/
 coverage/
 staticfiles/
+thumbnail-cache/
 test-results/
 *.egg-info/
 build/

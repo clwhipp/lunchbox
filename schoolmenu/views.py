@@ -198,7 +198,7 @@ def detail(request, food_id):
 @require_GET
 def thumbnail(request, food_id):
     food = get_object_or_404(Food, pk=food_id)
-    image = thumbnail_bytes(food.pe_id, int(time.time() // 3600))
+    image = thumbnail_bytes(str(food.school_id), food.pe_id, int(time.time() // 3600))
     if image is None:
         response = redirect(static("menus/plate.svg"))
         response["Cache-Control"] = "public, max-age=60"

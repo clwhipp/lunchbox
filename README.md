@@ -21,7 +21,7 @@ Defaults match the original API client: **Northeast Elementary**, **grade 01**, 
 
 - Weekdays open the current Monday–Friday menu. Saturdays and Sundays open the upcoming Monday–Friday menu: Sunday, November 8 opens November 9–13. The shortcut reads “Upcoming week” on weekends and “This week” on weekdays. Previous/next, date selection, and bookmarks preserve school and grade.
 - Entrées, vegetables, and drinks have separate sections. When SchoolCafé links a choice item to an entrée, it appears in an indented box beneath each linked entrée; fruit and grains remain under each day's extras unless linked to an entrée.
-- Select a food for serving size, source allergen wording, calories, total/saturated fat, carbohydrates, sodium, and available ingredients. Missing photos use a local illustration.
+- Select a food for serving size, source allergen wording, calories, total/saturated fat, carbohydrates, sodium, and available ingredients. Validated thumbnails cache on disk across weeks; missing photos use a local illustration.
 - **Likes** and **Dislikes** are mutually exclusive. Uncheck the selected box to clear it. Green/red outlines indicate the saved preference, which follows the food across menu dates, schools, and household browsers.
 - **Compact disliked items** is enabled by default. Disliked cards shrink to the food name and an accessible Dislikes checkbox; switch the control above the menu off to restore the full cards. This display preference is stored in the browser.
 - A **sack lunch** is only listed after you confirm it with that day's checkbox. Confirmed weekdays are saved in the shared household database and remain listed even if the menu is unpublished. Likes and dislikes remain separate food preferences and do not infer lunch plans.

@@ -20,8 +20,13 @@ Compose reads `.env`, which is excluded from source control and Docker's build c
 | `CSRF_TRUSTED_ORIGINS` | Empty | Optional trusted full origins for a proxy configuration |
 | `CALENDAR_PUBLIC_BASE_URL` | Empty | Optional externally reachable HTTPS base URL for stable iPhone subscription links; allow a path prefix |
 | `CALENDAR_REFRESH_INTERVAL_SECONDS` | `21600` | Interval in seconds between two-week cache refreshes; valid range 60–604800 |
+| `THUMBNAIL_CACHE_DIR` | Sibling `thumbnail-cache/` directory beside `DATABASE_PATH` | Persistent file cache location; in Compose, defaults to `/data/thumbnail-cache` |
+| `THUMBNAIL_CACHE_TTL_SECONDS` | `2592000` | How long a disk-cached thumbnail is fresh (30 days); stale images are served if refresh fails |
+| `THUMBNAIL_CACHE_MAX_BYTES` | `134217728` | Maximum file-cache size (128 MiB); oldest files are pruned when exceeded |
 
 Published menus cache for 15 minutes; empty menus for 5 minutes; saved-data fallback lasts at most 24 hours. Provider calls are paced across the single process, use a 5-second timeout, and retry transient connection/server errors once. HTTP 429 is not retried. Policy constants live in `schoolmenu/config/settings.py`.
+
+Thumbnails are fetched on demand through the same-origin thumbnail route. The application checks the scope-keyed disk cache first and requests SchoolCafe only for a miss or expired entry; a successful response is validated and atomically written to disk. The cache lives beside the database on the existing persistent Compose volume, is separate from SQLite, requires no migration, and is pruned to its configured size limit. When SchoolCafe is unavailable, a valid stale image is served; if none exists, the bundled plate illustration remains the fallback.
 
 This version uses one Gunicorn process, four threads, and local SQLite storage. Food identity is scoped to school and source item ID. Likes/dislikes persist across dates/grades within that school; sack-lunch confirmations are explicit weekday selections scoped to the child profile, school, and serving date, and therefore remain selected when the menu grade changes.
 
