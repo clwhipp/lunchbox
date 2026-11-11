@@ -5,6 +5,11 @@ on:
       - '**'
   pull_request:
   workflow_call:
+    inputs:
+      checkout_ref:
+        description: Git ref to validate; defaults to the triggering ref.
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -14,7 +19,10 @@ jobs:
     name: Validate GitHub Actions workflows
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
       - name: Check workflow syntax and expressions
         run: >-
           docker run --rm
@@ -29,7 +37,10 @@ jobs:
       matrix:
         python-version: ['3.13', '3.14']
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: '${{ matrix.python-version }}'
@@ -54,7 +65,10 @@ jobs:
     needs: workflows
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -80,7 +94,10 @@ jobs:
     needs: workflows
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
       - run: cp .env.example .env
       - run: docker compose build
       - run: python3 scripts/docker_smoke.py
