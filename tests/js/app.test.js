@@ -3,14 +3,14 @@ import { JSDOM } from "jsdom";
 import { init } from "../../schoolmenu/static/menus/app.js";
 
 describe("menu progressive enhancement", () => {
-  let doc, win, form, like, dislike, dialog;
+  let doc, win, form, like, dislike, dialog, calendarDialog;
   function fire(name, detail) {
     doc.dispatchEvent(new win.CustomEvent(name, { detail }));
   }
   beforeEach(() => {
     vi.useFakeTimers();
     win = new JSDOM(
-      `<body><div id="save-status"></div><dialog id="food-dialog"><button data-close-dialog>Close</button><div id="dialog-content"></div></dialog><div id="week-panel"><label><input id="compact-disliked" type="checkbox" checked>Compact disliked items</label><a data-food-detail href="/food">Food</a><form class="preference-form" data-saved-state="neutral"><input type="hidden" name="state" value="neutral"><input type="checkbox" id="like" value="liked"><input type="checkbox" id="dislike" value="disliked"><button name="state" value="liked">Like</button><button name="state" value="neutral">Clear</button></form></div><input id="other" type="date"><img id="photo" src="broken" data-fallback="/plate.svg"></body>`,
+      `<body><div id="save-status"></div><dialog id="food-dialog"><button data-close-dialog>Close</button><div id="dialog-content"></div></dialog><dialog id="calendar-dialog"></dialog><div id="week-panel"><label><input id="compact-disliked" type="checkbox" checked>Compact disliked items</label><a data-food-detail href="/food">Food</a><form class="preference-form" data-saved-state="neutral"><input type="hidden" name="state" value="neutral"><input type="checkbox" id="like" value="liked"><input type="checkbox" id="dislike" value="disliked"><button name="state" value="liked">Like</button><button name="state" value="neutral">Clear</button></form></div><input id="other" type="date"><img id="photo" src="broken" data-fallback="/plate.svg"></body>`,
       { url: "http://localhost" },
     ).window;
     doc = win.document;
@@ -21,11 +21,165 @@ describe("menu progressive enhancement", () => {
     dialog = doc.getElementById("food-dialog");
     dialog.showModal = vi.fn();
     dialog.close = vi.fn(() => dialog.dispatchEvent(new win.Event("close")));
+    calendarDialog = doc.getElementById("calendar-dialog");
+    calendarDialog.showModal = vi.fn();
+    calendarDialog.close = vi.fn(() =>
+      calendarDialog.dispatchEvent(new win.Event("close")),
+    );
     init(doc);
   });
   afterEach(() => {
     vi.useRealTimers();
     win.close();
+  });
+  it("syncs the currently selected school and grade into the calendar details", () => {
+    const settings = doc.createElement("form");
+    settings.className = "school-settings";
+    settings.innerHTML =
+      '<select name="school"><option value="NORTHEAST_ELEMENTARY">Northeast Elementary</option><option value="ABBIE_GROVE">Abbie Grove</option></select><select name="grade"><option value="01">01</option><option value="02">02</option></select>';
+    const reveal = doc.createElement("form");
+    reveal.className = "calendar-reveal-form";
+    reveal.innerHTML =
+      '<input type="hidden" name="school"><input type="hidden" name="grade">';
+    const schoolLabel = doc.createElement("span");
+    schoolLabel.id = "calendar-school-label";
+    const gradeLabel = doc.createElement("span");
+    gradeLabel.id = "calendar-grade-label";
+    calendarDialog.append(reveal, schoolLabel, gradeLabel);
+    doc.body.append(settings);
+
+    const school = settings.querySelector('select[name="school"]');
+    const grade = settings.querySelector('select[name="grade"]');
+    school.value = "ABBIE_GROVE";
+    school.dispatchEvent(new win.Event("change", { bubbles: true }));
+    grade.value = "02";
+    grade.dispatchEvent(new win.Event("change", { bubbles: true }));
+
+    expect(reveal.querySelector('input[name="school"]').value).toBe(
+      "ABBIE_GROVE",
+    );
+    expect(reveal.querySelector('input[name="grade"]').value).toBe("02");
+    expect(schoolLabel.textContent).toBe("Abbie Grove");
+    expect(gradeLabel.textContent).toBe("02");
+  });
+  it("opens the calendar dialog and restores focus after closing", () => {
+    const trigger = doc.createElement("button");
+    trigger.dataset.calendarDialogOpen = "";
+    doc.body.append(trigger);
+
+    const click = new win.MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    trigger.dispatchEvent(click);
+
+    expect(click.defaultPrevented).toBe(true);
+    expect(calendarDialog.showModal).toHaveBeenCalledOnce();
+    calendarDialog.dispatchEvent(new win.Event("close"));
+    expect(doc.activeElement).toBe(trigger);
+
+    calendarDialog.setAttribute("open", "");
+    const alreadyOpen = new win.MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    trigger.dispatchEvent(alreadyOpen);
+    expect(alreadyOpen.defaultPrevented).toBe(true);
+    expect(calendarDialog.showModal).toHaveBeenCalledOnce();
+    calendarDialog.dispatchEvent(new win.Event("close"));
+    expect(doc.activeElement).toBe(trigger);
+  });
+  it("reopens a revealed calendar dialog as a modal", () => {
+    const revealed = new JSDOM(
+      '<body><div id="save-status"></div><dialog id="food-dialog"></dialog><dialog id="calendar-dialog" open></dialog></body>',
+      { url: "http://localhost" },
+    );
+    const revealedDialog =
+      revealed.window.document.getElementById("calendar-dialog");
+    revealedDialog.close = vi.fn(() => {
+      revealedDialog.removeAttribute("open");
+      revealedDialog.dispatchEvent(new revealed.window.Event("close"));
+    });
+    revealedDialog.showModal = vi.fn();
+
+    init(revealed.window.document);
+
+    expect(revealedDialog.close).toHaveBeenCalledOnce();
+    expect(revealedDialog.showModal).toHaveBeenCalledOnce();
+    revealed.window.close();
+  });
+  it("copies a revealed calendar URL with the clipboard API", async () => {
+    const field = doc.createElement("textarea");
+    field.id = "calendar-subscription-url";
+    field.value = "https://example.test/calendar/short-token.ics";
+    const copyStatus = doc.createElement("p");
+    copyStatus.id = "calendar-copy-status";
+    const button = doc.createElement("button");
+    button.dataset.copyCalendarUrl = "";
+    doc.body.append(field, copyStatus, button);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(win.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    button.click();
+    await vi.waitFor(() =>
+      expect(copyStatus.textContent).toBe("Subscription URL copied."),
+    );
+    expect(writeText).toHaveBeenCalledWith(field.value);
+  });
+  it("uses the selection fallback when clipboard access is unavailable", () => {
+    const field = doc.createElement("textarea");
+    field.id = "calendar-subscription-url";
+    field.value = "short-link";
+    const copyStatus = doc.createElement("p");
+    copyStatus.id = "calendar-copy-status";
+    const button = doc.createElement("button");
+    button.dataset.copyCalendarUrl = "";
+    doc.body.append(field, copyStatus, button);
+    Object.defineProperty(win.navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    doc.execCommand = vi.fn(() => true);
+
+    button.click();
+
+    expect(doc.execCommand).toHaveBeenCalledWith("copy");
+    expect(copyStatus.textContent).toBe("Subscription URL copied.");
+  });
+  it("selects the URL if the clipboard fallback is blocked", () => {
+    const field = doc.createElement("textarea");
+    field.id = "calendar-subscription-url";
+    field.value = "short-link";
+    const copyStatus = doc.createElement("p");
+    copyStatus.id = "calendar-copy-status";
+    const button = doc.createElement("button");
+    button.dataset.copyCalendarUrl = "";
+    doc.body.append(field, copyStatus, button);
+    Object.defineProperty(win.navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    doc.execCommand = vi.fn(() => false);
+
+    button.click();
+
+    expect(copyStatus.textContent).toBe(
+      "Copy unavailable; the URL is selected for copying.",
+    );
+    expect(field.selectionStart).toBe(0);
+    expect(field.selectionEnd).toBe(field.value.length);
+  });
+  it("ignores an orphaned calendar copy button", () => {
+    const button = doc.createElement("button");
+    button.dataset.copyCalendarUrl = "";
+    doc.body.append(button);
+
+    button.click();
+
+    expect(doc.getElementById("calendar-copy-status")).toBe(null);
   });
   it("compacts disliked foods by default and keeps the choice after week swaps", () => {
     const toggle = doc.getElementById("compact-disliked");

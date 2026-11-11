@@ -4,6 +4,7 @@ from schoolmenu import views
 
 urlpatterns = [
     path("", views.index, name="index"),
+    path("calendar/<str:token>.ics", views.calendar_ics, name="calendar_feed"),
     path("foods/<int:food_id>/", views.detail, name="detail"),
     path("foods/<int:food_id>/thumbnail/", views.thumbnail, name="thumbnail"),
     path("foods/<int:food_id>/preference/", views.preference, name="preference"),

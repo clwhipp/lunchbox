@@ -2,9 +2,12 @@
 
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from django.core.exceptions import ImproperlyConfigured
+
+from schoolmenu.provider import School
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
@@ -18,21 +21,74 @@ ZoneInfo(TIME_ZONE)
 USE_TZ = True
 LANGUAGE_CODE = "en-us"
 DEFAULT_SCHOOL = os.environ.get("SCHOOL", "NORTHEAST_ELEMENTARY")
+if DEFAULT_SCHOOL not in School.__members__:
+    raise ImproperlyConfigured("SCHOOL must be a supported school enum name")
 DEFAULT_GRADE = os.environ.get("GRADE", "01")
 # Checked against Northeast Elementary weekly menus for grades 01 through 05.
 SUPPORTED_GRADES = os.environ.get("SUPPORTED_GRADES", "01,02,03,04,05").split(",")
 if DEFAULT_GRADE not in SUPPORTED_GRADES:
     raise ImproperlyConfigured("GRADE must be in SUPPORTED_GRADES")
+CALENDAR_PUBLIC_BASE_URL = os.environ.get("CALENDAR_PUBLIC_BASE_URL", "").rstrip("/")
+if CALENDAR_PUBLIC_BASE_URL:
+    try:
+        calendar_url_parts = urlsplit(CALENDAR_PUBLIC_BASE_URL)
+    except ValueError as exc:
+        raise ImproperlyConfigured("CALENDAR_PUBLIC_BASE_URL must be a valid HTTPS URL") from exc
+    if (
+        calendar_url_parts.scheme != "https"
+        or not calendar_url_parts.netloc
+        or calendar_url_parts.username
+        or calendar_url_parts.password
+        or calendar_url_parts.query
+        or calendar_url_parts.fragment
+    ):
+        raise ImproperlyConfigured(
+            "CALENDAR_PUBLIC_BASE_URL must be an HTTPS base URL without "
+            "credentials, query, or fragment"
+        )
+try:
+    CALENDAR_REFRESH_INTERVAL_SECONDS = int(
+        os.environ.get("CALENDAR_REFRESH_INTERVAL_SECONDS", "21600")
+    )
+except ValueError as exc:
+    raise ImproperlyConfigured("CALENDAR_REFRESH_INTERVAL_SECONDS must be an integer") from exc
+if not 60 <= CALENDAR_REFRESH_INTERVAL_SECONDS <= 604800:
+    raise ImproperlyConfigured("CALENDAR_REFRESH_INTERVAL_SECONDS must be between 60 and 604800")
+DATABASE_PATH = os.environ.get("DATABASE_PATH", str(BASE_DIR / "schoolcafe.sqlite3"))
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": os.environ.get("DATABASE_PATH", str(BASE_DIR / "schoolcafe.sqlite3")),
+        "NAME": DATABASE_PATH,
         "OPTIONS": {
             "timeout": 5,
             "init_command": "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;",
         },
     }
 }
+
+thumbnail_cache_dir = os.environ.get("THUMBNAIL_CACHE_DIR")
+THUMBNAIL_CACHE_DIR = (
+    Path(thumbnail_cache_dir)
+    if thumbnail_cache_dir
+    else Path(DATABASE_PATH).resolve().parent / "thumbnail-cache"
+)
+if not THUMBNAIL_CACHE_DIR.is_absolute():
+    raise ImproperlyConfigured("THUMBNAIL_CACHE_DIR must be an absolute path")
+
+
+def _positive_cache_setting(name: str, default: int) -> int:
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except ValueError as exc:
+        raise ImproperlyConfigured(f"{name} must be a positive integer") from exc
+    if value <= 0:
+        raise ImproperlyConfigured(f"{name} must be a positive integer")
+    return value
+
+
+THUMBNAIL_CACHE_TTL_SECONDS = _positive_cache_setting("THUMBNAIL_CACHE_TTL_SECONDS", 2592000)
+THUMBNAIL_CACHE_MAX_BYTES = _positive_cache_setting("THUMBNAIL_CACHE_MAX_BYTES", 134217728)
+
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.staticfiles",

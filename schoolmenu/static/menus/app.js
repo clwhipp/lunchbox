@@ -2,6 +2,7 @@
 export function init(doc) {
   doc.body.classList.add("js-enabled");
   const dialog = doc.getElementById("food-dialog");
+  const calendarDialog = doc.getElementById("calendar-dialog");
   const status = doc.getElementById("save-status");
   const compactPreferenceKey = "lunchbox.compactDisliked";
   let compactDisliked = true;
@@ -31,6 +32,7 @@ export function init(doc) {
   doc.body.classList.toggle("compact-disliked", compactDisliked);
   syncCompactToggle();
   let opener;
+  let calendarOpener;
   let focusId;
   let statusTimer;
   function announce(text, duration = 0) {
@@ -48,8 +50,33 @@ export function init(doc) {
       input.checked = input.value === form.dataset.savedState;
     }
   }
+  function syncCalendarSelection() {
+    const school = doc.querySelector('.school-settings select[name="school"]');
+    const grade = doc.querySelector('.school-settings select[name="grade"]');
+    if (!school || !grade) return;
+    const revealForm = calendarDialog?.querySelector(".calendar-reveal-form");
+    if (revealForm) {
+      revealForm.querySelector('input[name="school"]').value = school.value;
+      revealForm.querySelector('input[name="grade"]').value = grade.value;
+    }
+    const schoolLabel = doc.getElementById("calendar-school-label");
+    const gradeLabel = doc.getElementById("calendar-grade-label");
+    if (schoolLabel)
+      schoolLabel.textContent =
+        school.selectedOptions[0]?.textContent.trim() ?? school.value;
+    if (gradeLabel) gradeLabel.textContent = grade.value;
+  }
+  syncCalendarSelection();
   doc.addEventListener("change", (event) => {
     const input = event.target;
+    if (
+      input.matches(
+        '.school-settings select[name="school"], .school-settings select[name="grade"]',
+      )
+    ) {
+      syncCalendarSelection();
+      return;
+    }
     if (input.matches("#compact-disliked")) {
       setCompactDisliked(input.checked);
       return;
@@ -71,7 +98,39 @@ export function init(doc) {
     focusId = input.id;
     form.requestSubmit();
   });
+  doc.addEventListener("click", async (event) => {
+    const copyButton = event.target.closest("[data-copy-calendar-url]");
+    if (!copyButton) return;
+    const field = doc.getElementById("calendar-subscription-url");
+    const copyStatus = doc.getElementById("calendar-copy-status");
+    if (!field || !copyStatus) return;
+    try {
+      const clipboard = doc.defaultView.navigator.clipboard;
+      if (clipboard?.writeText) await clipboard.writeText(field.value);
+      else {
+        field.focus();
+        field.select();
+        field.setSelectionRange(0, field.value.length);
+        if (!doc.execCommand("copy")) throw new Error("Clipboard unavailable");
+      }
+      copyStatus.textContent = "Subscription URL copied.";
+    } catch {
+      field.focus();
+      field.select();
+      field.setSelectionRange(0, field.value.length);
+      copyStatus.textContent =
+        "Copy unavailable; the URL is selected for copying.";
+    }
+  });
   doc.addEventListener("click", (event) => {
+    const calendarTrigger = event.target.closest("[data-calendar-dialog-open]");
+    if (calendarTrigger) {
+      event.preventDefault();
+      syncCalendarSelection();
+      calendarOpener = calendarTrigger;
+      if (!calendarDialog?.open) calendarDialog?.showModal();
+      return;
+    }
     const target = event.target.closest(
       "[data-food-detail], [data-close-dialog]",
     );
@@ -82,6 +141,15 @@ export function init(doc) {
   dialog.addEventListener("close", () => {
     if (opener?.isConnected) opener.focus();
   });
+  calendarDialog?.addEventListener("close", () => {
+    if (calendarOpener?.isConnected) calendarOpener.focus();
+    calendarOpener = undefined;
+  });
+  // POST reveals reopen the modal; the open attribute preserves a no-JS fallback.
+  if (calendarDialog?.open) {
+    calendarDialog.close();
+    calendarDialog.showModal();
+  }
   doc.addEventListener("htmx:beforeRequest", (event) => {
     if (event.detail.elt.matches(".preference-form, .sack-lunch-form")) {
       for (const input of event.detail.elt.querySelectorAll(

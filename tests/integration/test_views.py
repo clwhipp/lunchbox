@@ -36,7 +36,7 @@ def test_full_page_and_redirects(client, source):
     response = client.get("/", {"date": "2026-11-11"})
     assert response.status_code == 302 and "week=2026-11-09" in response.url
     assert client.get("/", {"week": "invalid"}).status_code == 400
-    assert client.post("/").status_code == 405
+    assert client.post("/").status_code == 400
 
 
 def test_extra_groups_are_expanded_by_default(client, source):
@@ -155,7 +155,8 @@ def test_thumbnail_binary_response_and_fallback(client, source, monkeypatch):
     response = client.get(url)
     assert response.content == b"jpeg bytes" and response["Content-Type"] == "image/jpeg"
     assert response["Cache-Control"] == "public, max-age=3600"
-    assert fetch.call_args.args[0] == food.pe_id
+    assert fetch.call_args.args[:2] == (str(food.school_id), food.pe_id)
+    assert isinstance(fetch.call_args.args[2], int)
     fetch.return_value = None
     response = client.get(url)
     assert response.status_code == 302 and response.url.endswith("menus/plate.svg")

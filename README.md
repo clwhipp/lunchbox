@@ -1,6 +1,6 @@
 # Lunchbox · SchoolCafe family menu
 
-A Dockerized Django application for Monday–Friday school menus, food photos, allergen and nutrition details, persistent food preferences, and explicit per-day sack-lunch planning in SQLite.
+A Dockerized Django application for Monday–Friday school menus, food photos, allergen and nutrition details, persistent food preferences, per-day sack-lunch planning, and a private two-week iCalendar subscription.
 
 ## Run with Docker
 
@@ -21,18 +21,21 @@ Defaults match the original API client: **Northeast Elementary**, **grade 01**, 
 
 - Weekdays open the current Monday–Friday menu. Saturdays and Sundays open the upcoming Monday–Friday menu: Sunday, November 8 opens November 9–13. The shortcut reads “Upcoming week” on weekends and “This week” on weekdays. Previous/next, date selection, and bookmarks preserve school and grade.
 - Entrées, vegetables, and drinks have separate sections. When SchoolCafé links a choice item to an entrée, it appears in an indented box beneath each linked entrée; fruit and grains remain under each day's extras unless linked to an entrée.
-- Select a food for serving size, source allergen wording, calories, total/saturated fat, carbohydrates, sodium, and available ingredients. Missing photos use a local illustration.
+- Select a food for serving size, source allergen wording, calories, total/saturated fat, carbohydrates, sodium, and available ingredients. Validated thumbnails cache on disk across weeks; missing photos use a local illustration.
 - **Likes** and **Dislikes** are mutually exclusive. Uncheck the selected box to clear it. Green/red outlines indicate the saved preference, which follows the food across menu dates, schools, and household browsers.
 - **Compact disliked items** is enabled by default. Disliked cards shrink to the food name and an accessible Dislikes checkbox; switch the control above the menu off to restore the full cards. This display preference is stored in the browser.
 - A **sack lunch** is only listed after you confirm it with that day's checkbox. Confirmed weekdays are saved in the shared household database and remain listed even if the menu is unpublished. Likes and dislikes remain separate food preferences and do not infer lunch plans.
+- **Menu calendar:** Click **Subscribe to menu calendar** to open its details modal; press **Show subscription URL** there to reveal a copyable link for the iPhone Calendar app’s “Add Subscribed Calendar” flow. The short link is scoped to the school and grade currently selected on the page; changing either selection creates a different stream. It includes ten all-day weekday events in a rolling 14-day window and updates with that scope’s menu, using ✅ for liked foods and ❌ for disliked foods. Each event groups items under **MAIN ENTRÉES**, **🥦 SIDES**, and **🥛 MILK & DRINKS**, nests served-together choices, and links to that week’s full Lunchbox menu. The subscription URL is a private bearer link; anyone who has it can view the household menu and preference markers. Configure `CALENDAR_PUBLIC_BASE_URL` to the externally reachable HTTPS address when using a reverse proxy; see [calendar and refresh-worker setup](docs/DEPLOYMENT.md#menu-calendar-subscription).
 
 Menu data is cached. A source outage can use a clearly labeled saved menu for up to 24 hours. Preference saves do not require SchoolCafe and are never sent to it. This is a shared household application with one default child profile, not a multi-account service.
 
 ## Screenshots
 
-These representative views use captured SchoolCafe sample data and synthetic preferences in an isolated demo database. The first two show the new explicit sack-lunch confirmation; the focused mobile view shows a served-together choice nested under its entrée.
+These representative views use captured SchoolCafe sample data and synthetic preferences in an isolated demo database. The first two show the explicit sack-lunch confirmation; the focused mobile view shows a served-together choice nested under its entrée. The subscription screenshot shows the details modal before revealing its private URL.
 
 ![Desktop weekly menu with a confirmed sack lunch and a linked choice under its parent entrée](docs/screenshots/weekly-menu-desktop.png)
+
+![Menu calendar subscription details modal with the URL still hidden](docs/screenshots/menu-subscription.png)
 
 ![Responsive mobile menu with a confirmed sack lunch](docs/screenshots/mobile-menu.png)
 
