@@ -1,3 +1,4 @@
+import hmac
 import json
 import re
 from datetime import date
@@ -48,6 +49,35 @@ def test_week_navigation_and_modal(page, menu_server):
     expect(opener).to_be_focused()
 
 
+def test_calendar_subscription_url_is_hidden_until_revealed_and_wraps_on_mobile(page, menu_server):
+    page.set_viewport_size({"width": 320, "height": 900})
+    page.goto(menu_server)
+    expect(page.get_by_role("button", name="Show subscription URL")).to_be_visible()
+    assert page.locator("#calendar-subscription-url").count() == 0
+
+    page.get_by_role("button", name="Show subscription URL").click()
+    subscription = page.get_by_label("Subscription URL")
+    expect(subscription).to_be_visible()
+    expect(subscription).to_have_attribute("readonly", "")
+    assert subscription.evaluate("element => element.tagName") == "TEXTAREA"
+    assert subscription.evaluate("element => element.scrollWidth <= element.clientWidth")
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    assert subscription.input_value().endswith(".ics")
+
+
+def test_calendar_copy_button_copies_the_revealed_url(page, menu_server):
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"], origin=menu_server)
+    page.goto(menu_server)
+    page.get_by_role("button", name="Show subscription URL").click()
+    subscription = page.get_by_label("Subscription URL")
+    url = subscription.input_value()
+
+    page.get_by_role("button", name="Copy URL to clipboard").click()
+
+    expect(page.locator("#calendar-copy-status")).to_have_text("Subscription URL copied.")
+    assert hmac.compare_digest(page.evaluate("navigator.clipboard.readText()"), url)
+
+
 def test_served_together_choice_is_indented_under_parent_entree(page, menu_server, monkeypatch):
     payload = json.loads((SAMPLES / "weekly-2026-11-09.json").read_text())
     monday = payload["11/9/2026"]
@@ -66,6 +96,13 @@ def test_served_together_choice_is_indented_under_parent_entree(page, menu_serve
     page.set_viewport_size({"width": 320, "height": 1000})
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
     expect(parent.locator(".related-items")).to_be_visible()
+
+
+def _reveal_and_redact_calendar_url(page):
+    page.get_by_role("button", name="Show subscription URL").click()
+    page.locator("#calendar-subscription-url").evaluate(
+        "element => { element.value = 'https://menus.example.invalid/calendar/REDACTED.ics'; }"
+    )
 
 
 def test_capture_lunch_planning_feature_screenshots(page, menu_server, monkeypatch):
@@ -97,6 +134,7 @@ def test_capture_lunch_planning_feature_screenshots(page, menu_server, monkeypat
     expect(page.locator(".sack-summary")).to_contain_text("Mon, Nov 9")
     linked_item = page.locator("#day-2026-11-10 .menu-item-entry").filter(has_text="Beef Taco Meat")
     expect(linked_item.locator(".related-items")).to_contain_text("Nacho Cheese Doritos")
+    _reveal_and_redact_calendar_url(page)
     page.screenshot(path=str(screenshots / "weekly-menu-desktop.png"), full_page=True)
 
     page.set_viewport_size({"width": 390, "height": 1280})
@@ -104,6 +142,7 @@ def test_capture_lunch_planning_feature_screenshots(page, menu_server, monkeypat
     expect(
         page.get_by_role("checkbox", name="Sack lunch for Monday, November 9", exact=True)
     ).to_be_checked()
+    _reveal_and_redact_calendar_url(page)
     page.screenshot(path=str(screenshots / "mobile-menu.png"))
     linked_item.screenshot(path=str(screenshots / "served-together-choice-mobile.png"))
 

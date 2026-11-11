@@ -26,4 +26,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"
 ENTRYPOINT ["lunchbox-entrypoint"]
-CMD ["gunicorn", "schoolmenu.config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "1", "--threads", "4", "--timeout", "30", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["gunicorn", "schoolmenu.config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "1", "--threads", "4", "--timeout", "30", "--access-logfile", "-", "--access-logformat", "%(h)s %(t)s %(m)s %(s)s %(b)s", "--error-logfile", "-"]

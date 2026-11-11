@@ -71,6 +71,30 @@ export function init(doc) {
     focusId = input.id;
     form.requestSubmit();
   });
+  doc.addEventListener("click", async (event) => {
+    const copyButton = event.target.closest("[data-copy-calendar-url]");
+    if (!copyButton) return;
+    const field = doc.getElementById("calendar-subscription-url");
+    const copyStatus = doc.getElementById("calendar-copy-status");
+    if (!field || !copyStatus) return;
+    try {
+      const clipboard = doc.defaultView.navigator.clipboard;
+      if (clipboard?.writeText) await clipboard.writeText(field.value);
+      else {
+        field.focus();
+        field.select();
+        field.setSelectionRange(0, field.value.length);
+        if (!doc.execCommand("copy")) throw new Error("Clipboard unavailable");
+      }
+      copyStatus.textContent = "Subscription URL copied.";
+    } catch {
+      field.focus();
+      field.select();
+      field.setSelectionRange(0, field.value.length);
+      copyStatus.textContent =
+        "Copy unavailable; the URL is selected for copying.";
+    }
+  });
   doc.addEventListener("click", (event) => {
     const target = event.target.closest(
       "[data-food-detail], [data-close-dialog]",

@@ -975,3 +975,69 @@ noscript button {
     scroll-behavior: auto !important;
   }
 }
+.calendar-subscription {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 24px;
+  padding: 22px;
+  border: 1px solid #d9e4d3;
+  border-radius: var(--radius);
+  background: #eaf0e6;
+}
+.calendar-subscription h2 {
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+}
+.calendar-subscription p {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.calendar-subscription label {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 650;
+}
+.calendar-reveal-form {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 2px;
+}
+.calendar-url-panel {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+.calendar-subscription textarea {
+  width: 100%;
+  min-height: 92px;
+  padding: 11px 12px;
+  border: 1px solid #cbd6c4;
+  border-radius: 9px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  resize: vertical;
+  user-select: all;
+  word-break: break-all;
+}
+.calendar-copy-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.calendar-copy-row p {
+  min-height: 16px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.calendar-subscription .calendar-privacy {
+  color: #7b4541;
+  font-size: 11px;
+}

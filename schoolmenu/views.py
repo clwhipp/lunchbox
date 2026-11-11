@@ -1,17 +1,23 @@
 """Thin HTTP views for a shared household menu."""
 
+import hashlib
 import time
 from datetime import date
+from urllib.parse import urlsplit
 
+from django.conf import settings
+from django.core import signing
 from django.db import DatabaseError, connection
 from django.db.migrations.executor import MigrationExecutor
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseNotModified, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
+from django.utils import timezone
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from . import services
+from . import calendar_feed, services
+from .ics import build_calendar
 from .images import thumbnail_bytes
 from .models import Food
 
@@ -23,16 +29,72 @@ def selection_or_error(request, params):
         return render(request, "menus/error.html", {"error": str(exc)}, status=400)
 
 
-@require_GET
+@require_http_methods(["GET", "POST"])
 @never_cache
 def index(request):
-    selection = selection_or_error(request, request.GET)
+    reveal_calendar_url = request.method == "POST"
+    params = request.POST if reveal_calendar_url else request.GET
+    if reveal_calendar_url and params.get("calendar_action") != "reveal":
+        return render(
+            request,
+            "menus/error.html",
+            {"error": "Use the subscription button to reveal the calendar URL."},
+            status=400,
+        )
+    selection = selection_or_error(request, params)
     if isinstance(selection, HttpResponse):
         return selection
-    raw = request.GET.get("week")
-    if request.GET.get("date") or (raw and raw != selection.start.isoformat()):
+    raw = params.get("week")
+    if not reveal_calendar_url and (
+        request.GET.get("date") or (raw and raw != selection.start.isoformat())
+    ):
         return redirect(selection.url())
-    return render(request, "menus/index.html", services.load_week(selection))
+    context = services.load_week(selection)
+    identity = calendar_feed.default_calendar_identity()
+    context.update(
+        calendar_subscription_url=(
+            calendar_feed.calendar_subscription_url(request) if reveal_calendar_url else None
+        ),
+        calendar_school_label=identity.school.name.replace("_", " ").title(),
+        calendar_grade=identity.grade,
+    )
+    return render(request, "menus/index.html", context)
+
+
+@require_GET
+def calendar_ics(request, token):
+    try:
+        identity = calendar_feed.decode_calendar_token(token)
+    except signing.BadSignature as exc:
+        raise Http404("Calendar subscription not found") from exc
+
+    window_start = timezone.localdate()
+    selections = calendar_feed.default_calendar_selections(window_start)
+    weeks = [services.load_week(selection, fetch=False) for selection in selections]
+    school_label = identity.school.name.replace("_", " ").title()
+    public_url = settings.CALENDAR_PUBLIC_BASE_URL or request.build_absolute_uri("/")
+    uid_domain = urlsplit(public_url).hostname or "calendar.lunchbox"
+    content = build_calendar(
+        weeks,
+        school_id=identity.school.value,
+        school_label=school_label,
+        grade=identity.grade,
+        uid_domain=uid_domain,
+        window_start=window_start,
+        generated_at=timezone.now(),
+    )
+    etag = f'"{hashlib.sha256(content.encode("utf-8")).hexdigest()}"'
+    response = (
+        HttpResponseNotModified()
+        if "*" in request.headers.get("If-None-Match", "").split(",")
+        or etag in [tag.strip() for tag in request.headers.get("If-None-Match", "").split(",")]
+        else HttpResponse(content, content_type="text/calendar; charset=utf-8")
+    )
+    response["Content-Disposition"] = 'inline; filename="lunchbox-menu.ics"'
+    response["Cache-Control"] = "private, max-age=300"
+    response["ETag"] = etag
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @require_POST

@@ -14,5 +14,40 @@ services:
     restart: unless-stopped
     init: true
     stop_grace_period: 30s
+  calendar-refresh:
+    build:
+      context: .
+      target: runtime
+    image: "${LUNCHBOX_IMAGE:-lunchbox:local}"
+    command: ["python", "manage.py", "refresh_calendar_menus"]
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
+      DATABASE_PATH: /data/schoolcafe.sqlite3
+      SCHOOL_TIME_ZONE: ${SCHOOL_TIME_ZONE:-America/Chicago}
+      SCHOOL: ${SCHOOL:-NORTHEAST_ELEMENTARY}
+      GRADE: ${GRADE:-01}
+      SUPPORTED_GRADES: ${SUPPORTED_GRADES:-01,02,03,04,05}
+      CALENDAR_REFRESH_INTERVAL_SECONDS: ${CALENDAR_REFRESH_INTERVAL_SECONDS:-21600}
+    volumes:
+      - schoolcafe_data:/data
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
 volumes:
   schoolcafe_data:

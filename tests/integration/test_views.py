@@ -36,7 +36,7 @@ def test_full_page_and_redirects(client, source):
     response = client.get("/", {"date": "2026-11-11"})
     assert response.status_code == 302 and "week=2026-11-09" in response.url
     assert client.get("/", {"week": "invalid"}).status_code == 400
-    assert client.post("/").status_code == 405
+    assert client.post("/").status_code == 400
 
 
 def test_extra_groups_are_expanded_by_default(client, source):

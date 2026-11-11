@@ -27,6 +27,79 @@ describe("menu progressive enhancement", () => {
     vi.useRealTimers();
     win.close();
   });
+  it("copies a revealed calendar URL with the clipboard API", async () => {
+    const field = doc.createElement("textarea");
+    field.id = "calendar-subscription-url";
+    field.value = "https://example.test/calendar/short-token.ics";
+    const copyStatus = doc.createElement("p");
+    copyStatus.id = "calendar-copy-status";
+    const button = doc.createElement("button");
+    button.dataset.copyCalendarUrl = "";
+    doc.body.append(field, copyStatus, button);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(win.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    button.click();
+    await vi.waitFor(() =>
+      expect(copyStatus.textContent).toBe("Subscription URL copied."),
+    );
+    expect(writeText).toHaveBeenCalledWith(field.value);
+  });
+  it("uses the selection fallback when clipboard access is unavailable", () => {
+    const field = doc.createElement("textarea");
+    field.id = "calendar-subscription-url";
+    field.value = "short-link";
+    const copyStatus = doc.createElement("p");
+    copyStatus.id = "calendar-copy-status";
+    const button = doc.createElement("button");
+    button.dataset.copyCalendarUrl = "";
+    doc.body.append(field, copyStatus, button);
+    Object.defineProperty(win.navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    doc.execCommand = vi.fn(() => true);
+
+    button.click();
+
+    expect(doc.execCommand).toHaveBeenCalledWith("copy");
+    expect(copyStatus.textContent).toBe("Subscription URL copied.");
+  });
+  it("selects the URL if the clipboard fallback is blocked", () => {
+    const field = doc.createElement("textarea");
+    field.id = "calendar-subscription-url";
+    field.value = "short-link";
+    const copyStatus = doc.createElement("p");
+    copyStatus.id = "calendar-copy-status";
+    const button = doc.createElement("button");
+    button.dataset.copyCalendarUrl = "";
+    doc.body.append(field, copyStatus, button);
+    Object.defineProperty(win.navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    doc.execCommand = vi.fn(() => false);
+
+    button.click();
+
+    expect(copyStatus.textContent).toBe(
+      "Copy unavailable; the URL is selected for copying.",
+    );
+    expect(field.selectionStart).toBe(0);
+    expect(field.selectionEnd).toBe(field.value.length);
+  });
+  it("ignores an orphaned calendar copy button", () => {
+    const button = doc.createElement("button");
+    button.dataset.copyCalendarUrl = "";
+    doc.body.append(button);
+
+    button.click();
+
+    expect(doc.getElementById("calendar-copy-status")).toBe(null);
+  });
   it("compacts disliked foods by default and keeps the choice after week swaps", () => {
     const toggle = doc.getElementById("compact-disliked");
     expect(doc.body.classList.contains("compact-disliked")).toBe(true);

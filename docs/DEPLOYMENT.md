@@ -18,10 +18,28 @@ Compose reads `.env`, which is excluded from source control and Docker's build c
 | `LUNCHBOX_IMAGE` | `lunchbox:local` | Local image or published `username/lunchbox:version` to run |
 | `DATABASE_PATH` | `/data/schoolcafe.sqlite3` | Set inside Compose's persistent data directory |
 | `CSRF_TRUSTED_ORIGINS` | Empty | Optional trusted full origins for a proxy configuration |
+| `CALENDAR_PUBLIC_BASE_URL` | Empty | Optional externally reachable HTTPS base URL for stable iPhone subscription links; allow a path prefix |
+| `CALENDAR_REFRESH_INTERVAL_SECONDS` | `21600` | Interval in seconds between two-week cache refreshes; valid range 60–604800 |
 
 Published menus cache for 15 minutes; empty menus for 5 minutes; saved-data fallback lasts at most 24 hours. Provider calls are paced across the single process, use a 5-second timeout, and retry transient connection/server errors once. HTTP 429 is not retried. Policy constants live in `schoolmenu/config/settings.py`.
 
 This version uses one Gunicorn process, four threads, and local SQLite storage. Food identity is scoped to school and source item ID. Likes/dislikes persist across dates/grades within that school; sack-lunch confirmations are explicit weekday selections scoped to the child profile, school, and serving date, and therefore remain selected when the menu grade changes.
+
+## Menu calendar subscription
+
+The menu page reveals a stable `.ics` subscription URL only after the user presses **Show subscription URL**; the revealed field includes a copy-to-clipboard button. The feed is tied to the deployment-configured `SCHOOL` and `GRADE`; changing the page's school/grade selectors does not change this feed. It contains the ten weekdays within the next fourteen calendar days, using all school-week menu records that overlap that rolling window. Events are all-day, titled with weekday, school, and grade, and their descriptions group menu items, nest served-together choices, and mark `[LIKED]` / `[DISLIKED]` items. Unpublished dates remain present with a placeholder. Like/dislike markers are read from the household's saved preferences when the feed is fetched.
+
+The `calendar-refresh` Compose worker starts after the web service is healthy, immediately refreshes every school week intersecting the next fourteen days (normally two or three weeks), and repeats every `CALENDAR_REFRESH_INTERVAL_SECONDS` (default six hours). It shares the existing SQLite volume, publishes no port, and runs as UID/GID 10001 with a read-only image filesystem, a small `/tmp` tmpfs, no added capabilities, and bounded CPU/memory/PID resources. A failed pass is logged and retried after the next interval; an existing saved menu remains available. iPhone Calendar decides when it polls the subscribed URL, so the app cannot force immediate refresh on the device.
+
+Set `CALENDAR_PUBLIC_BASE_URL` to the externally reachable HTTPS base URL when TLS terminates at a reverse proxy (for example, `https://menus.example.net`); an optional path prefix is supported. This keeps the copied URL usable from iPhone even if the proxy does not forward the original scheme. If unset, Lunchbox builds the address from the request that rendered the page. Ensure the public hostname is allowed by `DJANGO_ALLOWED_HOSTS` and that the route is reachable over HTTPS. Paste the copied URL into the iPhone Calendar app's **Add Subscribed Calendar** flow.
+
+Treat the URL as a private bearer link: anyone who obtains it can see the household menu and like/dislike markers. Its path contains a short 22-character opaque HMAC token, with no embedded payload, keyed by `DJANGO_SECRET_KEY` and bound to `SCHOOL`/`GRADE`; changing the key or either default invalidates the old URL, so reveal and copy the new one from the menu page. Gunicorn access logs omit request targets to avoid recording the calendar token. Reverse-proxy logs may still record request paths; restrict access to those logs or redact `/calendar/` paths there.
+
+Inspect worker activity with `docker compose logs --tail=100 calendar-refresh`. Run a single diagnostic refresh with:
+
+```bash
+docker compose run --rm --no-deps calendar-refresh python manage.py refresh_calendar_menus --once
+```
 
 ## Installation and household access
 
