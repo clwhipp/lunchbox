@@ -80,7 +80,7 @@ def _description_section(item: Any) -> str:
     return "sides"
 
 
-def _day_description(day: Any, stale: bool, menu_url: str) -> str:
+def _day_description(day: Any, stale: bool, menu_url: str, include_dislikes: bool) -> str:
     lines = []
     if stale:
         lines.append("WARNING: Menu data may be out of date.")
@@ -90,13 +90,19 @@ def _day_description(day: Any, stale: bool, menu_url: str) -> str:
     seen: set[int] = set()
     for group in day.groups:
         for item in group.items:
+            if item.excluded or (item.preference == "disliked" and not include_dislikes):
+                continue
             if item.is_related_item or item.pe_id in seen:
                 continue
             seen.add(item.pe_id)
             section = section_items[_description_section(item)]
             section.append(f"• {_preference_label(item)}")
             for related in item.related_items:
-                if related.pe_id in seen:
+                if (
+                    related.pe_id in seen
+                    or related.excluded
+                    or (related.preference == "disliked" and not include_dislikes)
+                ):
                     continue
                 seen.add(related.pe_id)
                 section.append(f"  ↳ Served together: {_preference_label(related)}")
@@ -136,6 +142,7 @@ def build_calendar(
     uid_domain: str = "calendar.lunchbox",
     window_start: date | None = None,
     generated_at: datetime | None = None,
+    include_dislikes: bool = True,
 ) -> str:
     """Render weekly contexts as all-day weekday events in an iCalendar feed."""
     generated_at = generated_at or timezone.now()
@@ -167,7 +174,7 @@ def build_calendar(
                 f"{day.date:%A}, {day.date:%b} {day.date.day} — {school_label} — Grade {grade}"
             )
             menu_url = _full_menu_url(menu_base_url, school_key, grade, day.date)
-            description = _day_description(day, stale, menu_url)
+            description = _day_description(day, stale, menu_url, include_dislikes)
             event_lines = [
                 "BEGIN:VEVENT",
                 _content_line("UID", _event_uid(school_id, grade, day.date, uid_domain)),

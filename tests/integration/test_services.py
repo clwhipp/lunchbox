@@ -13,7 +13,7 @@ from django.db import IntegrityError, connections, transaction
 from django.utils import timezone
 
 from schoolmenu import services
-from schoolmenu.models import ChildProfile, Food, FoodPreference, MenuCache
+from schoolmenu.models import ChildProfile, Food, FoodExclusion, FoodPreference, MenuCache
 from schoolmenu.provider import ProviderError, School
 from schoolmenu.services import Selection, cached_menu, ingredients_for, load_week, save_preference
 
@@ -50,6 +50,56 @@ def test_selection_uses_school_local_date(monkeypatch, now, expected):
     assert Selection.parse({"date": "2026-11-11"}).start == date(2026, 11, 9)
     assert selected.grade == "01"
     assert f"week={expected.isoformat()}" in selected.url()
+
+
+def test_exclusions_hide_from_menu_without_changing_preferences(monkeypatch, weekly, selection):
+    monkeypatch.setattr(services, "fetch_provider", Mock(return_value=weekly))
+    original = load_week(selection)
+    item = original["days"][0].entrees[0]
+    food = Food.objects.get(pk=item.food_id)
+    save_preference(food, "liked")
+
+    services.save_exclusion(food, True)
+    hidden = load_week(selection, fetch=False)
+    assert all(entry.food_id != food.pk for day in hidden["days"] for entry in day.items)
+    assert hidden["excluded_foods"] == [food]
+    assert FoodPreference.objects.get(food=food).value == "liked"
+
+    services.save_exclusion(food, False)
+    restored = load_week(selection, fetch=False)
+    restored_item = next(
+        entry for day in restored["days"] for entry in day.items if entry.food_id == food.pk
+    )
+    assert restored_item.preference == "liked"
+    assert not restored["excluded_foods"]
+
+
+def test_exclusion_endpoint_hides_item_and_ics(monkeypatch, weekly, selection, client):
+    monkeypatch.setattr(services, "fetch_provider", Mock(return_value=weekly))
+    context = services.load_week(selection)
+    item = context["days"][0].entrees[0]
+    food = Food.objects.get(pk=item.food_id)
+    services.save_preference(food, "disliked")
+    params = {
+        "week": selection.start.isoformat(),
+        "school": selection.school.name,
+        "grade": selection.grade,
+    }
+
+    initial_page = client.get("/", params)
+    assert b'class="exclude-checkbox"' in initial_page.content
+    assert b"Manage excluded items (0)" in initial_page.content
+
+    response = client.post(f"/foods/{food.pk}/exclusion/", {**params, "excluded": "true"})
+    assert response.status_code == 302
+    assert FoodExclusion.objects.filter(food=food).exists()
+    assert FoodPreference.objects.get(food=food).value == "disliked"
+    menu_response = client.get("/", params)
+    assert all(
+        entry.food_id != food.pk for day in menu_response.context["days"] for entry in day.items
+    )
+    assert "Manage excluded items" in menu_response.content.decode()
+    assert "Exclude" in menu_response.content.decode()
 
 
 def test_real_preferences_propagate_across_days_and_reloads(monkeypatch, weekly, selection):

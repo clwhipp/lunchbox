@@ -26,6 +26,8 @@
         <input type="hidden" name="grade" value="{{ selection.grade }}">
         <input type="hidden" name="week" value="{{ selection.start|date:'Y-m-d' }}">
         <input type="hidden" name="calendar_action" value="reveal">
+        <input type="hidden" name="include_dislikes" value="false">
+        <label class="calendar-include-dislikes"><input type="checkbox" name="include_dislikes" value="true" hx-post="{% url 'calendar_settings' %}" hx-trigger="change" hx-include="closest form" hx-swap="none" {% if calendar_include_dislikes %}checked{% endif %}> Include disliked items in the calendar</label>
         <button class="button" type="submit">Show subscription URL</button>
       </form>
     {% endif %}

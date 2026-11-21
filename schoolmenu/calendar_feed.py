@@ -54,7 +54,7 @@ def decode_calendar_token(token: str) -> Selection:
 
 
 def calendar_subscription_url(request, selection: Selection | None = None) -> str:
-    """Create an absolute, stable URL for this school/grade calendar subscription."""
+    """Create a stable absolute URL bound only to this school/grade selection."""
     path = reverse("calendar_feed", kwargs={"token": calendar_token(selection)})
     public_base = settings.CALENDAR_PUBLIC_BASE_URL
     if public_base:

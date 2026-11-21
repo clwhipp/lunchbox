@@ -11,4 +11,9 @@
     </div>
     <div class="no-js-only"><p>Saved: {{ item.preference }}</p><button name="state" value="liked">Like</button><button name="state" value="disliked">Dislike</button><button name="state" value="neutral">Clear</button></div>
   </form>
+  <form method="post" action="{% url 'exclusion' item.food_id %}" hx-post="{% url 'exclusion' item.food_id %}" hx-target="#week-panel" hx-swap="outerHTML" class="exclusion-form" data-saved-state="false">
+    {% csrf_token %}<input type="hidden" name="week" value="{{ selection.start|date:'Y-m-d' }}"><input type="hidden" name="school" value="{{ selection.school.name }}"><input type="hidden" name="grade" value="{{ selection.grade }}"><input type="hidden" name="excluded" value="false">
+    <div class="preference-controls js-only"><label class="dislike-choice exclusion-choice"><input class="exclude-checkbox" id="exclude-{{ day.date|date:'Ymd' }}-{{ item.food_id }}" type="checkbox" aria-label="Exclude {{ item.name }} from menu" value="true"> Exclude</label></div>
+    <div class="no-js-only"><button name="excluded" value="true">Exclude</button></div>
+  </form>
 </article>

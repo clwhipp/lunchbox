@@ -21,7 +21,15 @@ from .domain import (
     provider_date,
     sack_lunch_days,
 )
-from .models import ChildProfile, Food, FoodPreference, MenuCache, SackLunch
+from .models import (
+    CalendarSettings,
+    ChildProfile,
+    Food,
+    FoodExclusion,
+    FoodPreference,
+    MenuCache,
+    SackLunch,
+)
 from .provider import ProviderError, School, SchoolCafeClient
 
 logger = logging.getLogger(__name__)
@@ -227,6 +235,18 @@ def cached_menu(selection: Selection, kind: str, serving_date: date, *, fetch=Tr
         return CachedMenu({}, error=error)
 
 
+def calendar_include_dislikes() -> bool:
+    value = CalendarSettings.objects.filter(pk=1).values_list("include_dislikes", flat=True).first()
+    return True if value is None else value
+
+
+def save_calendar_include_dislikes(include_dislikes: bool) -> None:
+    CalendarSettings.objects.update_or_create(
+        pk=1,
+        defaults={"include_dislikes": include_dislikes},
+    )
+
+
 def default_profile() -> ChildProfile:
     return ChildProfile.objects.get_or_create(pk=1)[0]
 
@@ -258,9 +278,22 @@ def load_week(selection: Selection, *, fetch=True) -> dict:
             pe_id__in={i.pe_id for i in items},
         ).values_list("pe_id", "value")
     )
+    excluded_food_ids = set(
+        FoodExclusion.objects.filter(
+            profile=default_profile(),
+            food__school_id=selection.school.value,
+        ).values_list("food_id", flat=True)
+    )
     for item in items:
         item.food_id = foods[item.source_id].pk
         item.preference = preferences.get(item.pe_id, "neutral")
+        item.excluded = item.food_id in excluded_food_ids
+    for day in days:
+        for group in day.groups:
+            group.items = [item for item in group.items if not item.excluded]
+        day.groups = [group for group in day.groups if group.items]
+        for item in day.items:
+            item.related_items = [child for child in item.related_items if not child.excluded]
     confirmed = set(
         SackLunch.objects.filter(
             profile=default_profile(),
@@ -284,7 +317,21 @@ def load_week(selection: Selection, *, fetch=True) -> dict:
         "query": selection.url()[2:],
         "schools": [(s.name, s.name.replace("_", " ").title()) for s in School],
         "grades": settings.SUPPORTED_GRADES,
+        "excluded_foods": list(
+            Food.objects.filter(
+                school_id=selection.school.value, pk__in=excluded_food_ids
+            ).order_by("name")
+        ),
     }
+
+
+def save_exclusion(food: Food, excluded: bool) -> None:
+    with transaction.atomic():
+        profile = default_profile()
+        if excluded:
+            FoodExclusion.objects.get_or_create(profile=profile, food=food)
+        else:
+            FoodExclusion.objects.filter(profile=profile, food=food).delete()
 
 
 def save_preference(food: Food, value: str) -> None:

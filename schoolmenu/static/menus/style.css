@@ -367,6 +367,60 @@ input[type="date"] {
   align-items: start;
   margin-bottom: 40px;
 }
+.excluded-foods {
+  margin-bottom: 14px;
+}
+.excluded-foods[open] {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.excluded-foods summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.excluded-foods summary:hover {
+  background: #f0f2eb;
+}
+.excluded-foods[open] summary {
+  margin-bottom: 12px;
+}
+.excluded-foods > p {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.excluded-foods ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.excluded-foods li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 7px;
+  border-top: 1px solid var(--line);
+}
+.restore-exclusion-form,
+.exclusion-form {
+  margin: 0;
+}
+.exclude-button {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 11px;
+}
 .day-column {
   min-width: 0;
   scroll-margin-top: 16px;
@@ -999,7 +1053,29 @@ noscript button {
   font-size: 12px;
   font-weight: 650;
 }
+.calendar-include-dislikes {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 14px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.calendar-include-dislikes input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--green);
+  flex: 0 0 auto;
+}
 .calendar-reveal-form {
+  display: grid;
+  justify-content: stretch;
+  gap: 8px;
+  margin-top: 2px;
+}
+.calendar-reveal-form .button {
   display: flex;
   justify-content: flex-start;
   margin-top: 2px;

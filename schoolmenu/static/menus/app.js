@@ -87,6 +87,15 @@ export function init(doc) {
       sackForm.requestSubmit();
       return;
     }
+    const exclusionForm = input.closest(".exclusion-form");
+    if (exclusionForm && input.matches(".exclude-checkbox")) {
+      exclusionForm.querySelector('input[name="excluded"]').value = String(
+        input.checked,
+      );
+      focusId = input.id;
+      exclusionForm.requestSubmit();
+      return;
+    }
     const form = input.closest(".preference-form");
     if (!form || input.type !== "checkbox") return;
     const state = input.checked ? input.value : "neutral";
@@ -151,7 +160,11 @@ export function init(doc) {
     calendarDialog.showModal();
   }
   doc.addEventListener("htmx:beforeRequest", (event) => {
-    if (event.detail.elt.matches(".preference-form, .sack-lunch-form")) {
+    if (
+      event.detail.elt.matches(
+        ".preference-form, .sack-lunch-form, .exclusion-form, .restore-exclusion-form",
+      )
+    ) {
       for (const input of event.detail.elt.querySelectorAll(
         '[type="checkbox"]',
       ))
@@ -161,7 +174,11 @@ export function init(doc) {
   });
   doc.addEventListener("htmx:afterRequest", (event) => {
     const form = event.detail.elt;
-    if (form.matches(".preference-form, .sack-lunch-form")) {
+    if (
+      form.matches(
+        ".preference-form, .sack-lunch-form, .exclusion-form, .restore-exclusion-form",
+      )
+    ) {
       for (const input of form.querySelectorAll('[type="checkbox"]'))
         input.disabled = false;
       if (event.detail.successful) announce("Saved.", 2500);

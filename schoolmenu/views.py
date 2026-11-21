@@ -41,9 +41,14 @@ def index(request):
             {"error": "Use the subscription button to reveal the calendar URL."},
             status=400,
         )
+    include_dislikes = params.get("include_dislikes", "true") == "true"
     selection = selection_or_error(request, params)
     if isinstance(selection, HttpResponse):
         return selection
+    if reveal_calendar_url:
+        services.save_calendar_include_dislikes(include_dislikes)
+    else:
+        include_dislikes = services.calendar_include_dislikes()
     raw = params.get("week")
     if not reveal_calendar_url and (
         request.GET.get("date") or (raw and raw != selection.start.isoformat())
@@ -58,10 +63,22 @@ def index(request):
             else None
         ),
         calendar_dialog_open=(reveal_calendar_url or request.GET.get("calendar_dialog") == "open"),
+        calendar_include_dislikes=include_dislikes,
         calendar_school_label=identity.school.name.replace("_", " ").title(),
         calendar_grade=identity.grade,
     )
     return render(request, "menus/index.html", context)
+
+
+@require_POST
+@never_cache
+def calendar_settings(request):
+    values = request.POST.getlist("include_dislikes")
+    value = values[-1] if values else ""
+    if value not in {"true", "false"}:
+        return JsonResponse({"error": "Choose whether to include disliked items."}, status=400)
+    services.save_calendar_include_dislikes(value == "true")
+    return HttpResponse(status=204)
 
 
 @require_GET
@@ -71,6 +88,7 @@ def calendar_ics(request, token):
     except signing.BadSignature as exc:
         raise Http404("Calendar subscription not found") from exc
 
+    include_dislikes = services.calendar_include_dislikes()
     window_start = timezone.localdate()
     selections = calendar_feed.calendar_selections(identity, window_start)
     weeks = [services.load_week(selection) for selection in selections]
@@ -87,6 +105,7 @@ def calendar_ics(request, token):
         uid_domain=uid_domain,
         window_start=window_start,
         generated_at=timezone.now(),
+        include_dislikes=include_dislikes,
     )
     etag = f'"{hashlib.sha256(content.encode("utf-8")).hexdigest()}"'
     response = (
@@ -134,6 +153,35 @@ def sack_lunch(request):
             request,
             "menus/error.html",
             {"error": "Could not save the sack lunch. Please retry."},
+            status=503,
+        )
+    if request.headers.get("HX-Request") == "true":
+        return render(request, "menus/week.html", services.load_week(selection, fetch=False))
+    return redirect(selection.url())
+
+
+@require_POST
+@never_cache
+def exclusion(request, food_id):
+    selection = selection_or_error(request, request.POST)
+    if isinstance(selection, HttpResponse):
+        return selection
+    food = get_object_or_404(Food, pk=food_id, school_id=selection.school.value)
+    excluded_value = request.POST.get("excluded", "")
+    if excluded_value not in {"true", "false"}:
+        return render(
+            request,
+            "menus/error.html",
+            {"error": "Choose whether to exclude this food."},
+            status=400,
+        )
+    try:
+        services.save_exclusion(food, excluded_value == "true")
+    except DatabaseError:
+        return render(
+            request,
+            "menus/error.html",
+            {"error": "Could not save exclusion. Please retry."},
             status=503,
         )
     if request.headers.get("HX-Request") == "true":
