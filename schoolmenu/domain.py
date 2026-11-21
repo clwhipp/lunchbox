@@ -81,6 +81,7 @@ class Item:
     nutrition: list[dict]
     food_id: int = 0
     preference: str = "neutral"
+    excluded: bool = False
     related_items: list[Item] = field(default_factory=list)
     is_related_item: bool = False
 

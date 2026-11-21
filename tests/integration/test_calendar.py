@@ -4,11 +4,12 @@ from datetime import UTC, date, datetime, timedelta
 from unittest.mock import Mock
 
 import pytest
-from django.test import RequestFactory, override_settings
+from django.test import Client, RequestFactory, override_settings
 from django.urls import reverse
 
 from schoolmenu import calendar_feed, services
 from schoolmenu.domain import Day, Group, Item
+from schoolmenu.ics import build_calendar
 
 pytestmark = pytest.mark.django_db
 
@@ -59,6 +60,10 @@ def test_menu_page_reveals_a_selection_scoped_calendar_url_only_after_post(
     assert page.status_code == 200
     assert b"Subscribe to menu calendar" in page.content
     assert b"Show subscription URL" in page.content
+    assert re.search(
+        rb'<input type="checkbox" name="include_dislikes" value="true"[^>]*checked',
+        page.content,
+    )
     assert b"calendar-subscription-url" not in page.content
     assert b'<dialog id="calendar-dialog"' in page.content
     assert page.context["calendar_school_label"] == "Abbie Grove"
@@ -100,6 +105,55 @@ def test_menu_page_reveals_a_selection_scoped_calendar_url_only_after_post(
     assert revealed.context["calendar_school_label"] == "Abbie Grove"
     assert revealed.context["calendar_grade"] == "02"
 
+    without_dislikes = client.post(
+        "/",
+        {
+            "school": "ABBIE_GROVE",
+            "grade": "02",
+            "week": "2026-11-09",
+            "calendar_action": "reveal",
+            "include_dislikes": "false",
+        },
+    )
+    unchanged_url = hmac.compare_digest(
+        revealed.context["calendar_subscription_url"],
+        without_dislikes.context["calendar_subscription_url"],
+    )
+    assert unchanged_url, "feed settings must not be encoded in subscription URLs"
+    another_browser = Client().get(
+        "/",
+        {
+            "calendar_dialog": "open",
+            "school": "ABBIE_GROVE",
+            "grade": "02",
+            "week": "2026-11-09",
+        },
+    )
+    assert not re.search(
+        rb'<input type="checkbox" name="include_dislikes" value="true"[^>]*checked',
+        another_browser.content,
+    )
+    assert b'name="include_dislikes" value="true"' in another_browser.content
+    services.save_calendar_include_dislikes(True)
+
+
+def test_calendar_include_dislikes_setting_persists_across_clients(client, source):
+    services.save_calendar_include_dislikes(True)
+    initial = client.get("/", {"calendar_dialog": "open"})
+    assert re.search(
+        rb'<input type="checkbox" name="include_dislikes" value="true"[^>]*checked',
+        initial.content,
+    )
+
+    response = client.post("/calendar/settings/", {"include_dislikes": "false"})
+    assert response.status_code == 204
+
+    another_client = Client().get("/", {"calendar_dialog": "open"})
+    assert b'name="include_dislikes" value="true" checked' not in another_client.content
+    assert b'name="include_dislikes" value="true"' in another_client.content
+    assert client.post("/calendar/settings/", {"include_dislikes": "invalid"}).status_code == 400
+    services.save_calendar_include_dislikes(True)
+
 
 def test_calendar_details_have_a_no_javascript_get_fallback(client, source, monkeypatch):
     monkeypatch.setattr(services.timezone, "localdate", lambda: date(2026, 11, 11))
@@ -117,6 +171,27 @@ def test_calendar_details_have_a_no_javascript_get_fallback(client, source, monk
     assert response.context["calendar_dialog_open"] is True
     assert b'<dialog id="calendar-dialog"' in response.content
     assert b"calendar-subscription-url" not in response.content
+
+
+def test_calendar_description_can_omit_disliked_items():
+    day = Day(date(2026, 11, 11))
+    liked = Item(1, 101, "Liked meal", "ENTREES", "", "", "", [], preference="liked")
+    disliked = Item(2, 102, "Disliked meal", "ENTREES", "", "", "", [], preference="disliked")
+    day.groups.append(Group("Entrées", "main", [liked, disliked]))
+
+    content = build_calendar(
+        [{"days": [day]}],
+        school_id="school",
+        school_key="SCHOOL",
+        menu_base_url="https://menus.example.test",
+        school_label="School",
+        grade="01",
+        window_start=date(2026, 11, 11),
+        include_dislikes=False,
+    )
+
+    assert "Liked meal" in content
+    assert "Disliked meal" not in content
 
 
 @override_settings(CALENDAR_PUBLIC_BASE_URL="https://menus.example.test/lunchbox")
@@ -142,6 +217,18 @@ def test_calendar_feed_builds_a_private_rolling_fourteen_day_response(client, mo
                 is_related_item=True,
             )
             parent.related_items.append(choice)
+            hidden = Item(
+                3,
+                103,
+                "Hidden Side",
+                "VEGETABLES CHOICE BAR",
+                "",
+                "",
+                "",
+                [],
+                excluded=True,
+            )
+            parent.related_items.append(hidden)
             week["days"][2].groups.append(Group("Entrées", "main", [parent, choice]))
         return week
 
@@ -157,6 +244,13 @@ def test_calendar_feed_builds_a_private_rolling_fourteen_day_response(client, mo
     assert response["Cache-Control"] == "private, max-age=300"
     assert response["ETag"].startswith('"')
     assert response.content.count(b"BEGIN:VEVENT") == 10
+    starts.clear()
+    services.save_calendar_include_dislikes(False)
+    without_dislikes = client.get(url)
+    without_dislikes_text = without_dislikes.content.decode().replace("\r\n ", "")
+    assert "✅ Cheese\\, Pizzable" in without_dislikes_text
+    assert "❌ Fruit Cup" not in without_dislikes_text
+    assert without_dislikes["ETag"] != response["ETag"]
     calendar_text = response.content.decode().replace("\r\n ", "")
     assert "SUMMARY:Wednesday\\, Nov 11 — Northeast Elementary — Grade 01" in calendar_text
     assert "✅ Cheese\\, Pizzable" in calendar_text
@@ -169,6 +263,7 @@ def test_calendar_feed_builds_a_private_rolling_fourteen_day_response(client, mo
     ]
     assert event_dates[0] == "20261111" and event_dates[-1] == "20261124"
     assert starts == [date(2026, 11, 9), date(2026, 11, 16), date(2026, 11, 23)]
+    services.save_calendar_include_dislikes(True)
     full_menu = (
         "https://menus.example.test/lunchbox/?week=2026-11-09&school=NORTHEAST_ELEMENTARY&grade=01"
     )

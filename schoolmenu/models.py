@@ -51,6 +51,22 @@ class SackLunch(models.Model):
         ]
 
 
+class FoodExclusion(models.Model):
+    profile = models.ForeignKey(ChildProfile, on_delete=models.CASCADE)
+    food = models.ForeignKey(Food, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["profile", "food"], name="unique_food_exclusion")
+        ]
+
+
+class CalendarSettings(models.Model):
+    include_dislikes = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
 class MenuCache(models.Model):
     key = models.CharField(max_length=300, unique=True)
     payload = models.JSONField()

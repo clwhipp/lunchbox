@@ -234,6 +234,23 @@ describe("menu progressive enhancement", () => {
     expect(blockedDoc.body.classList.contains("compact-disliked")).toBe(false);
     blocked.window.close();
   });
+  it("submits exclusion checkbox changes independently from preferences", () => {
+    const exclusion = doc.createElement("form");
+    exclusion.className = "exclusion-form";
+    exclusion.innerHTML =
+      '<input type="hidden" name="excluded" value="false"><input class="exclude-checkbox" id="exclude" type="checkbox" value="true">';
+    exclusion.requestSubmit = vi.fn();
+    doc.getElementById("week-panel").append(exclusion);
+    const checkbox = exclusion.querySelector(".exclude-checkbox");
+
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new win.Event("change", { bubbles: true }));
+
+    expect(exclusion.querySelector('input[name="excluded"]').value).toBe(
+      "true",
+    );
+    expect(exclusion.requestSubmit).toHaveBeenCalledOnce();
+  });
   it("selects one preference, switches, and clears", () => {
     like.checked = true;
     like.dispatchEvent(new win.Event("change", { bubbles: true }));
